@@ -14,6 +14,7 @@ from src.agents.script_writer import node_script_writer
 from src.agents.tts import node_audio_generator
 from src.agents.vision import node_visual_generator
 from src.tools.video_editor import node_video_editor
+from src.utils.cache import get_cache, WorkflowCache
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +26,6 @@ logger = logging.getLogger(__name__)
 class VideoState(TypedDict):
     """
     비디오 생성 워크플로우의 상태를 관리하는 TypedDict
-    
-    Attributes:
-        topic: 비디오 주제
-        scenes: 장면 리스트, 각 장면은 {"script": str, "image_prompt": str, "audio_path": str, "image_path": str} 형식
-        final_video_path: 최종 비디오 파일 경로
     """
     topic: str
     scenes: List[Dict[str, str]]
@@ -41,13 +37,7 @@ class VideoState(TypedDict):
 # ============================================================================
 
 def retry_node(max_retries: int = 2, delay: float = 1.0):
-    """
-    노드 함수에 재시도 로직을 추가하는 데코레이터
-    
-    Args:
-        max_retries: 최대 재시도 횟수
-        delay: 재시도 간 대기 시간 (초)
-    """
+    """노드 함수에 재시도 로직을 추가하는 데코레이터"""
     def decorator(func):
         @wraps(func)
         def wrapper(state: VideoState) -> VideoState:
@@ -57,12 +47,11 @@ def retry_node(max_retries: int = 2, delay: float = 1.0):
                 try:
                     logger.debug(f"{func.__name__} 실행 (시도 {attempt + 1}/{max_retries + 1})")
                     return func(state)
-                    
                 except Exception as e:
                     last_error = e
                     if attempt < max_retries:
                         import time
-                        wait_time = delay * (attempt + 1)  # 지수 백오프
+                        wait_time = delay * (attempt + 1)
                         logger.warning(
                             f"{func.__name__} 실패 (시도 {attempt + 1}/{max_retries + 1}), "
                             f"{wait_time:.1f}초 후 재시도: {e}"
@@ -70,39 +59,81 @@ def retry_node(max_retries: int = 2, delay: float = 1.0):
                         time.sleep(wait_time)
                     else:
                         logger.error(f"{func.__name__} 최종 실패: {e}", exc_info=True)
-            
-            # 모든 재시도 실패
             raise last_error
-        
         return wrapper
     return decorator
 
 
 # ============================================================================
-# 노드 래퍼 (재시도 로직 포함)
+# 캐시 데코레이터
 # ============================================================================
 
+def with_cache(stage: str, result_keys: List[str]):
+    """
+    노드에 캐싱 로직을 추가하는 데코레이터
+    
+    Args:
+        stage: 캐시 단계 이름
+        result_keys: 캐시할 상태 키 목록
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(state: VideoState) -> VideoState:
+            cache = get_cache()
+            
+            # 캐시 확인
+            if cache:
+                cached = cache.get_stage(stage)
+                if cached:
+                    logger.info(f"[{stage}] 캐시에서 로드 (스킵)")
+                    result = {**state}
+                    for key in result_keys:
+                        if key in cached:
+                            result[key] = cached[key]
+                    return result
+            
+            # 실제 실행
+            result = func(state)
+            
+            # 캐시 저장
+            if cache:
+                cache_data = {key: result.get(key) for key in result_keys}
+                cache.set_stage(stage, cache_data)
+            
+            return result
+        return wrapper
+    return decorator
+
+
+# ============================================================================
+# 노드 래퍼 (캐싱 + 재시도)
+# ============================================================================
+
+@with_cache(WorkflowCache.STAGE_SCRIPT, ["scenes"])
 @retry_node(max_retries=2, delay=2.0)
 def node_script_writer_with_retry(state: VideoState) -> VideoState:
-    """대본 작성 노드 (재시도 포함)"""
+    """대본 작성 노드 (캐싱 + 재시도)"""
     return node_script_writer(state)
 
 
+@with_cache(WorkflowCache.STAGE_AUDIO, ["scenes"])
 @retry_node(max_retries=2, delay=1.0)
 def node_audio_generator_with_retry(state: VideoState) -> VideoState:
-    """오디오 생성 노드 (재시도 포함)"""
+    """오디오 생성 노드 (캐싱 + 재시도)"""
     return node_audio_generator(state)
 
 
+@with_cache(WorkflowCache.STAGE_IMAGE, ["scenes"])
 @retry_node(max_retries=2, delay=3.0)
 def node_visual_generator_with_retry(state: VideoState) -> VideoState:
-    """이미지 생성 노드 (재시도 포함)"""
+    """이미지 생성 노드 (캐싱 + 재시도)"""
     return node_visual_generator(state)
 
 
+@with_cache(WorkflowCache.STAGE_VIDEO, ["final_video_path"])
 @retry_node(max_retries=1, delay=2.0)
 def node_video_editor_with_retry(state: VideoState) -> VideoState:
-    """비디오 편집 노드 (재시도 포함)"""
+    """비디오 편집 노드 (캐싱 + 재시도)"""
     return node_video_editor(state)
 
 
@@ -124,7 +155,6 @@ def create_video_graph(checkpoint: bool = False) -> StateGraph:
     
     # 그래프 생성
     if checkpoint:
-        # 체크포인트 사용 (장기 실행 시 상태 복구 가능)
         memory = MemorySaver()
         workflow = StateGraph(VideoState).compile(checkpointer=memory)
     else:
@@ -148,16 +178,9 @@ def create_video_graph(checkpoint: bool = False) -> StateGraph:
         workflow = workflow.compile()
     
     logger.info("비디오 생성 그래프 구성 완료")
-    
     return workflow
 
 
 def create_video_graph_simple() -> StateGraph:
-    """
-    간단한 버전의 그래프 생성 (체크포인트 없음)
-    
-    Returns:
-        컴파일된 StateGraph
-    """
+    """간단한 버전의 그래프 생성 (체크포인트 없음)"""
     return create_video_graph(checkpoint=False)
-

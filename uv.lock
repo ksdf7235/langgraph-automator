@@ -430,7 +430,9 @@ dependencies = [
     { name = "langchain-ollama" },
     { name = "langgraph" },
     { name = "moviepy" },
+    { name = "pillow" },
     { name = "pydantic" },
+    { name = "python-dotenv" },
     { name = "requests" },
     { name = "websocket-client" },
 ]
@@ -442,7 +444,9 @@ requires-dist = [
     { name = "langchain-ollama", specifier = ">=1.0.0" },
     { name = "langgraph", specifier = ">=1.0.4" },
     { name = "moviepy", specifier = ">=2.2.1" },
+    { name = "pillow", specifier = ">=10.0.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "requests", specifier = ">=2.32.5" },
     { name = "websocket-client", specifier = ">=1.9.0" },
 ]

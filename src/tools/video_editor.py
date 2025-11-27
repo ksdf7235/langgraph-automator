@@ -9,9 +9,10 @@ from pathlib import Path
 from typing import Dict, List
 
 import numpy as np
-from moviepy.editor import (
+from moviepy import (
     ImageClip,
     AudioFileClip,
+    VideoClip,
     concatenate_videoclips,
     CompositeVideoClip
 )
@@ -73,18 +74,17 @@ def apply_ken_burns_effect(clip: ImageClip, duration: float, zoom_factor: float 
                 resized = resized[:h, :w]
             return resized.astype(np.uint8)
     
-    # 효과 적용
+    # 효과 적용 - 최신 moviepy에서는 VideoClip을 직접 생성
     try:
-        zoomed_clip = clip.fl(make_frame, apply_to=['mask'])
+        zoomed_clip = VideoClip(make_frame)
+        zoomed_clip = zoomed_clip.with_duration(duration)
+        zoomed_clip = zoomed_clip.with_fps(Config.VIDEO_FPS)
     except Exception as e:
-        logger.warning(f"Ken Burns 효과 적용 실패, 기본 resize 사용: {e}")
-        # 폴백: 간단한 resize
-        def zoom_func(t):
-            progress = min(t / duration, 1.0) if duration > 0 else 0
-            return 1.0 + (zoom_factor - 1.0) * progress
-        zoomed_clip = clip.resize(zoom_func)
+        logger.warning(f"Ken Burns 효과 적용 실패, 기본 이미지 사용: {e}")
+        # 최종 폴백: 원본 이미지만 사용
+        zoomed_clip = clip.with_duration(duration)
     
-    return zoomed_clip.set_duration(duration)
+    return zoomed_clip
 
 
 def create_video_clip(image_path: str, audio_path: str, zoom_factor: float = None) -> ImageClip:
@@ -125,15 +125,15 @@ def create_video_clip(image_path: str, audio_path: str, zoom_factor: float = Non
     # 이미지 클립 생성
     try:
         image_clip = ImageClip(image_path)
-        image_clip = image_clip.set_duration(audio_duration)
+        image_clip = image_clip.with_duration(audio_duration)
         
         # Ken Burns 효과 적용
         zoom_factor = zoom_factor or Config.ZOOM_FACTOR
         image_clip = apply_ken_burns_effect(image_clip, audio_duration, zoom_factor)
         
         # 오디오와 결합
-        video_clip = image_clip.set_audio(audio_clip)
-        video_clip = video_clip.set_fps(Config.VIDEO_FPS)
+        video_clip = image_clip.with_audio(audio_clip)
+        video_clip = video_clip.with_fps(Config.VIDEO_FPS)
         
         logger.debug(f"비디오 클립 생성 완료: {image_path}")
         return video_clip
@@ -199,9 +199,7 @@ def compose_video(scenes: List[Dict], output_path: Path) -> None:
             codec=Config.VIDEO_CODEC,
             audio_codec=Config.VIDEO_AUDIO_CODEC,
             temp_audiofile=str(temp_audio_path),
-            remove_temp=True,
-            verbose=False,
-            logger=None
+            remove_temp=True
         )
         
         logger.info(f"[비디오 편집] 완료: {output_path}")

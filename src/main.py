@@ -3,19 +3,38 @@ YouTube Shorts 자동 생성 에이전트 - 메인 엔트리 포인트
 입력 → 그래프 실행 → 출력만 담당합니다.
 """
 
+import argparse
 import logging
 import sys
+from pathlib import Path
+
+# 프로젝트 루트를 sys.path에 추가
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 from src.config import Config
 from src.utils.logger import setup_logger
+from src.utils.cache import init_cache
 from src.workflow.graph import create_video_graph_simple, VideoState
 
 # 로거 설정
 logger = setup_logger()
 
 
+def parse_args():
+    """명령행 인자 파싱"""
+    parser = argparse.ArgumentParser(description="YouTube Shorts 자동 생성 에이전트")
+    parser.add_argument("--topic", "-t", type=str, default="AI의 미래", help="비디오 주제")
+    parser.add_argument("--no-cache", action="store_true", help="캐시 사용 안 함 (처음부터 새로 생성)")
+    parser.add_argument("--clear-cache", action="store_true", help="캐시 초기화 후 실행")
+    return parser.parse_args()
+
+
 def main():
     """메인 실행 함수"""
+    args = parse_args()
+    
     logger.info("=" * 60)
     logger.info("YouTube Shorts 자동 생성 에이전트")
     logger.info("=" * 60)
@@ -25,9 +44,25 @@ def main():
         Config.validate()
         logger.info("설정 검증 완료")
         
+        # 캐시 초기화
+        cache = init_cache(args.topic)
+        
+        if args.clear_cache:
+            cache.clear()
+            logger.info("캐시가 초기화되었습니다.")
+        elif args.no_cache:
+            cache.clear()
+            logger.info("캐시 사용 안 함 모드")
+        else:
+            # 캐시 상태 출력
+            status = cache.get_status()
+            cached_stages = [k for k, v in status.items() if v]
+            if cached_stages:
+                logger.info(f"캐시된 단계: {', '.join(cached_stages)}")
+        
         # 초기 상태 설정
         initial_state: VideoState = {
-            "topic": "AI의 미래",
+            "topic": args.topic,
             "scenes": [],
             "final_video_path": ""
         }
