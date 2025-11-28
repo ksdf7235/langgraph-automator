@@ -53,10 +53,37 @@ class Config:
     # TTS 설정
     TTS_VOICE: str = os.getenv("TTS_VOICE", "ko-KR-InJoonNeural")
     
+    # Wan2.2 I2V 모션 생성 설정
+    MOTION_ENABLED: bool = os.getenv("MOTION_ENABLED", "true").lower() == "true"  # 모션 생성 활성화 여부
+    MOTION_FPS: int = int(os.getenv("MOTION_FPS", "12"))  # 모션 프레임레이트
+    MOTION_DURATION: float = float(os.getenv("MOTION_DURATION", "3.0"))  # 장면당 모션 길이 (초)
+    MOTION_MODEL_TYPE: str = os.getenv("MOTION_MODEL_TYPE", "wan2.2_distill")  # 모션 모델 타입
+    I2V_CHECKPOINT: str = os.getenv("I2V_CHECKPOINT", "Wan2.2-Distill-Loras.safetensors")  # I2V 체크포인트 모델
+    I2V_LORA: str = os.getenv("I2V_LORA", "Wan2.2-I2V-Distill-LORA.safetensors")  # I2V LoRA 모델
+    I2V_NODE_TYPE: str = os.getenv("I2V_NODE_TYPE", "ImageToVideo")  # I2V 노드 타입 (Wan2I2V, ImageToVideo, I2V 등)
+    I2V_STEPS: int = int(os.getenv("I2V_STEPS", "4"))  # I2V 추론 스텝 (Lightning/Distill 4-step)
+    I2V_GUIDANCE: float = float(os.getenv("I2V_GUIDANCE", "3.5"))  # I2V Guidance 스케일
+    
     @classmethod
-    def get_output_dir(cls) -> Path:
-        """출력 디렉토리 경로를 반환하고 생성합니다."""
+    def get_output_dir(cls, topic: str = None) -> Path:
+        """
+        출력 디렉토리 경로를 반환하고 생성합니다.
+        
+        Args:
+            topic: 주제명 (지정 시 주제별 폴더 생성)
+        
+        Returns:
+            출력 디렉토리 Path
+        """
         output_path = Path(cls.OUTPUT_DIR)
+        
+        # 주제가 지정되면 주제별 폴더 생성
+        if topic:
+            # 파일명에 사용할 수 없는 문자 제거
+            safe_topic = "".join(c for c in topic if c.isalnum() or c in (' ', '-', '_')).strip()
+            if safe_topic:
+                output_path = output_path / safe_topic
+        
         output_path.mkdir(parents=True, exist_ok=True)
         return output_path
     

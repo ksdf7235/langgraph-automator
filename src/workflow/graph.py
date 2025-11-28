@@ -13,6 +13,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from src.agents.script_writer import node_script_writer
 from src.agents.tts import node_audio_generator
 from src.agents.vision import node_visual_generator
+from src.tools.motion_gen import node_motion_generator
 from src.tools.video_editor import node_video_editor
 from src.utils.cache import get_cache, WorkflowCache
 
@@ -130,6 +131,13 @@ def node_visual_generator_with_retry(state: VideoState) -> VideoState:
     return node_visual_generator(state)
 
 
+@with_cache(WorkflowCache.STAGE_MOTION, ["scenes"])
+@retry_node(max_retries=2, delay=3.0)
+def node_motion_generator_with_retry(state: VideoState) -> VideoState:
+    """모션 생성 노드 (캐싱 + 재시도)"""
+    return node_motion_generator(state)
+
+
 @with_cache(WorkflowCache.STAGE_VIDEO, ["final_video_path"])
 @retry_node(max_retries=1, delay=2.0)
 def node_video_editor_with_retry(state: VideoState) -> VideoState:
@@ -164,13 +172,15 @@ def create_video_graph(checkpoint: bool = False) -> StateGraph:
     workflow.add_node("script_writer", node_script_writer_with_retry)
     workflow.add_node("audio_generator", node_audio_generator_with_retry)
     workflow.add_node("visual_generator", node_visual_generator_with_retry)
+    workflow.add_node("motion_generator", node_motion_generator_with_retry)
     workflow.add_node("video_editor", node_video_editor_with_retry)
     
     # 엣지 연결 (순차 실행)
     workflow.set_entry_point("script_writer")
     workflow.add_edge("script_writer", "audio_generator")
     workflow.add_edge("audio_generator", "visual_generator")
-    workflow.add_edge("visual_generator", "video_editor")
+    workflow.add_edge("visual_generator", "motion_generator")  # 이미지 생성 후 모션 생성
+    workflow.add_edge("motion_generator", "video_editor")  # 모션 생성 후 비디오 편집
     workflow.add_edge("video_editor", END)
     
     # 컴파일

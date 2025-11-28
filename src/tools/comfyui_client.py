@@ -71,6 +71,51 @@ class ComfyUIClient:
             logger.error(f"모델 목록 조회 실패: {e}")
             return []
     
+    def get_available_node_types(self) -> List[str]:
+        """
+        ComfyUI에서 사용 가능한 노드 타입 목록을 가져옵니다.
+        
+        Returns:
+            사용 가능한 노드 타입 리스트
+        """
+        try:
+            url = f"{self.base_url}/object_info"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            
+            object_info = response.json()
+            node_types = list(object_info.keys())
+            logger.debug(f"사용 가능한 노드 타입 {len(node_types)}개 발견")
+            return node_types
+                
+        except requests.RequestException as e:
+            logger.error(f"노드 타입 목록 조회 실패: {e}")
+            return []
+    
+    def check_node_exists(self, node_type: str) -> bool:
+        """
+        특정 노드 타입이 ComfyUI에 존재하는지 확인합니다.
+        
+        Args:
+            node_type: 확인할 노드 타입 이름
+            
+        Returns:
+            노드가 존재하면 True, 아니면 False
+        """
+        available_nodes = self.get_available_node_types()
+        exists = node_type in available_nodes
+        if not exists:
+            # I2V 관련 노드 찾기
+            i2v_nodes = [n for n in available_nodes if 'i2v' in n.lower() or 'imagetovideo' in n.lower() or 'video' in n.lower()]
+            if i2v_nodes:
+                logger.warning(
+                    f"노드 '{node_type}'를 찾을 수 없습니다. "
+                    f"사용 가능한 I2V 관련 노드: {', '.join(i2v_nodes[:5])}"
+                )
+            else:
+                logger.warning(f"노드 '{node_type}'를 찾을 수 없습니다.")
+        return exists
+    
     def load_workflow(self, workflow_path: str = None) -> Dict:
         """
         ComfyUI 워크플로우 JSON 파일을 로드하고 모델을 자동으로 설정합니다.
@@ -200,7 +245,7 @@ class ComfyUIClient:
             }
         }
     
-    def update_prompt(self, workflow: Dict, prompt: str) -> Dict:
+    def update_prompt(self, workflow: Dict, prompt: str, ensure_style_consistency: bool = True) -> Dict:
         """
         워크플로우에서 프롬프트 노드를 찾아 프롬프트를 업데이트합니다.
         딥카피를 사용하여 원본 워크플로우를 보호합니다.
@@ -208,6 +253,7 @@ class ComfyUIClient:
         Args:
             workflow: ComfyUI 워크플로우 딕셔너리
             prompt: 새로운 프롬프트
+            ensure_style_consistency: 스타일 일관성 태그 자동 추가 여부 (기본값: True)
             
         Returns:
             업데이트된 워크플로우 (딥카피)
@@ -217,6 +263,24 @@ class ComfyUIClient:
         
         # 딥카피 생성
         updated_workflow = copy.deepcopy(workflow)
+        
+        # 고품질 스타일 태그 추가 (이미 포함되어 있지 않은 경우)
+        enhanced_prompt = prompt
+        if ensure_style_consistency:
+            # 고품질 태그 우선 확인
+            quality_tags = ["masterpiece", "best quality", "ultra detailed"]
+            style_tags = ["anime style", "consistent art style", "JANKU style", "detailed anime illustration"]
+            
+            prompt_lower = prompt.lower()
+            
+            # 고품질 태그가 없으면 추가
+            missing_quality_tags = [tag for tag in quality_tags if tag.lower() not in prompt_lower]
+            missing_style_tags = [tag for tag in style_tags if tag.lower() not in prompt_lower]
+            
+            if missing_quality_tags or missing_style_tags:
+                all_missing_tags = missing_quality_tags + missing_style_tags
+                enhanced_prompt = ", ".join(all_missing_tags) + ", " + prompt
+                logger.debug(f"고품질 스타일 태그 추가: {', '.join(all_missing_tags)}")
         
         # CLIPTextEncode 노드 찾기
         # positive 프롬프트는 보통 빈 문자열이 아니거나 긴 텍스트를 가짐
@@ -247,8 +311,8 @@ class ComfyUIClient:
         if not prompt_node_id:
             raise ValueError("워크플로우에서 CLIPTextEncode 노드를 찾을 수 없습니다.")
         
-        updated_workflow[prompt_node_id]["inputs"]["text"] = prompt
-        logger.debug(f"프롬프트 업데이트: 노드 {prompt_node_id} - {prompt[:50]}...")
+        updated_workflow[prompt_node_id]["inputs"]["text"] = enhanced_prompt
+        logger.debug(f"프롬프트 업데이트: 노드 {prompt_node_id} - {enhanced_prompt[:80]}...")
         
         return updated_workflow
     
@@ -650,7 +714,8 @@ def node_visual_generator(state: Dict) -> Dict:
         if not scenes:
             raise ValueError("상태에 'scenes'가 없거나 비어있습니다.")
         
-        output_dir = Config.get_output_dir()
+        topic = state.get("topic", "")
+        output_dir = Config.get_output_dir(topic=topic)
         updated_scenes = generate_images(scenes, output_dir)
         
         return {

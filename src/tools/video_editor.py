@@ -13,6 +13,7 @@ from moviepy import (
     ImageClip,
     AudioFileClip,
     VideoClip,
+    ImageSequenceClip,
     concatenate_videoclips,
     CompositeVideoClip
 )
@@ -87,6 +88,79 @@ def apply_ken_burns_effect(clip: ImageClip, duration: float, zoom_factor: float 
     return zoomed_clip
 
 
+def create_video_clip_from_frames(frame_paths: List[str], audio_path: str, fps: int = None) -> VideoClip:
+    """
+    프레임 시퀀스와 오디오를 결합하여 비디오 클립을 생성합니다.
+    
+    Args:
+        frame_paths: 프레임 파일 경로 리스트
+        audio_path: 오디오 파일 경로
+        fps: 프레임레이트 (기본값: Config.MOTION_FPS)
+        
+    Returns:
+        오디오가 결합된 비디오 클립
+        
+    Raises:
+        FileNotFoundError: 프레임 또는 오디오 파일이 없는 경우
+        ValueError: 오디오 길이가 0이거나 프레임이 없는 경우
+    """
+    if not frame_paths:
+        raise ValueError("프레임 경로 리스트가 비어있습니다.")
+    
+    if not os.path.exists(audio_path):
+        raise FileNotFoundError(f"오디오 파일이 없습니다: {audio_path}")
+    
+    # 프레임 파일 존재 확인
+    for frame_path in frame_paths:
+        if not os.path.exists(frame_path):
+            raise FileNotFoundError(f"프레임 파일이 없습니다: {frame_path}")
+    
+    fps = fps or Config.MOTION_FPS
+    
+    # 오디오 클립 로드
+    try:
+        audio_clip = AudioFileClip(audio_path)
+        audio_duration = audio_clip.duration
+        
+        if audio_duration <= 0:
+            raise ValueError(f"오디오 길이가 0입니다: {audio_path}")
+        
+        logger.debug(f"오디오 로드 완료: {audio_path} (길이: {audio_duration:.2f}초)")
+    except Exception as e:
+        logger.error(f"오디오 로드 실패 ({audio_path}): {e}")
+        raise
+    
+    # 프레임 시퀀스에서 비디오 클립 생성
+    try:
+        logger.info(f"[비디오 편집] 프레임 시퀀스 클립 생성: {len(frame_paths)}개 프레임, FPS: {fps}")
+        
+        # ImageSequenceClip으로 프레임 시퀀스 생성
+        video_clip = ImageSequenceClip(frame_paths, fps=fps)
+        
+        # 오디오 길이에 맞춰 클립 길이 조정
+        if video_clip.duration > audio_duration:
+            video_clip = video_clip.subclip(0, audio_duration)
+        elif video_clip.duration < audio_duration:
+            # 프레임이 부족하면 마지막 프레임 반복
+            last_frame = frame_paths[-1]
+            additional_frames_needed = int((audio_duration - video_clip.duration) * fps)
+            extended_frames = frame_paths + [last_frame] * additional_frames_needed
+            video_clip = ImageSequenceClip(extended_frames, fps=fps)
+            video_clip = video_clip.subclip(0, audio_duration)
+        
+        # 오디오와 결합
+        video_clip = video_clip.with_audio(audio_clip)
+        video_clip = video_clip.with_fps(fps)
+        
+        logger.debug(f"프레임 시퀀스 비디오 클립 생성 완료: {len(frame_paths)}개 프레임, 길이: {video_clip.duration:.2f}초")
+        return video_clip
+        
+    except Exception as e:
+        logger.error(f"프레임 시퀀스 클립 생성 실패: {e}", exc_info=True)
+        audio_clip.close()
+        raise
+
+
 def create_video_clip(image_path: str, audio_path: str, zoom_factor: float = None) -> ImageClip:
     """
     이미지와 오디오를 결합하여 비디오 클립을 생성합니다.
@@ -147,9 +221,10 @@ def create_video_clip(image_path: str, audio_path: str, zoom_factor: float = Non
 def compose_video(scenes: List[Dict], output_path: Path) -> None:
     """
     모든 장면을 결합하여 최종 비디오를 생성합니다.
+    모션 프레임이 있으면 사용하고, 없으면 정적 이미지 사용 (하위 호환성).
     
     Args:
-        scenes: 장면 리스트
+        scenes: 장면 리스트 (motion_frames_path 또는 image_path 포함)
         output_path: 출력 비디오 파일 경로
         
     Raises:
@@ -159,25 +234,42 @@ def compose_video(scenes: List[Dict], output_path: Path) -> None:
     logger.info(f"[비디오 편집] {len(scenes)}개 장면 편집 시작")
     
     video_clips = []
+    use_motion = Config.MOTION_ENABLED
     
     try:
         for idx, scene in enumerate(scenes):
-            image_path = scene.get('image_path', '')
             audio_path = scene.get('audio_path', '')
+            motion_frames = scene.get('motion_frames_path', [])
+            image_path = scene.get('image_path', '')
             
-            # 파일 존재 확인 (강제 오류 발생)
-            if not image_path:
-                raise ValueError(f"장면 {idx+1}에 이미지 경로가 없습니다.")
+            # 파일 존재 확인
             if not audio_path:
                 raise ValueError(f"장면 {idx+1}에 오디오 경로가 없습니다.")
             
             logger.info(f"[비디오 편집] 장면 {idx+1} 처리 중...")
             
-            # 비디오 클립 생성
-            video_clip = create_video_clip(image_path, audio_path)
-            video_clips.append(video_clip)
+            # 모션 프레임이 있으면 사용, 없으면 정적 이미지 사용
+            if use_motion and motion_frames and len(motion_frames) > 0:
+                logger.info(f"[비디오 편집] 장면 {idx+1}: 모션 프레임 사용 ({len(motion_frames)}개 프레임)")
+                
+                # 프레임 파일 존재 확인
+                valid_frames = [f for f in motion_frames if os.path.exists(f)]
+                if not valid_frames:
+                    logger.warning(f"[비디오 편집] 장면 {idx+1}: 모션 프레임이 없어 정적 이미지로 폴백")
+                    if not image_path:
+                        raise ValueError(f"장면 {idx+1}에 이미지 경로도 없습니다.")
+                    video_clip = create_video_clip(image_path, audio_path)
+                else:
+                    video_clip = create_video_clip_from_frames(valid_frames, audio_path, fps=Config.MOTION_FPS)
+            else:
+                # 정적 이미지 사용 (하위 호환성)
+                if not image_path:
+                    raise ValueError(f"장면 {idx+1}에 이미지 경로가 없습니다.")
+                logger.info(f"[비디오 편집] 장면 {idx+1}: 정적 이미지 사용")
+                video_clip = create_video_clip(image_path, audio_path)
             
-            logger.info(f"[비디오 편집] 장면 {idx+1} 완료 (길이: {video_clip.duration:.2f}초)")
+            video_clips.append(video_clip)
+            logger.info(f"[비디오 편집] 장면 {idx+1} 완료 (길이: {video_clip.duration:.2f}초, 프레임: {video_clip.fps if hasattr(video_clip, 'fps') else 'N/A'}fps)")
         
         if not video_clips:
             raise ValueError("편집할 비디오 클립이 없습니다.")
@@ -193,9 +285,12 @@ def compose_video(scenes: List[Dict], output_path: Path) -> None:
         output_dir = output_path.parent
         temp_audio_path = output_dir / 'temp_audio.m4a'
         
+        # 모션 프레임 사용 시 해당 FPS 사용, 아니면 기본 FPS
+        export_fps = Config.MOTION_FPS if use_motion else Config.VIDEO_FPS
+        
         final_clip.write_videofile(
             str(output_path),
-            fps=Config.VIDEO_FPS,
+            fps=export_fps,
             codec=Config.VIDEO_CODEC,
             audio_codec=Config.VIDEO_AUDIO_CODEC,
             temp_audiofile=str(temp_audio_path),
@@ -228,7 +323,8 @@ def node_video_editor(state: Dict) -> Dict:
         if not scenes:
             raise ValueError("상태에 'scenes'가 없거나 비어있습니다.")
         
-        output_dir = Config.get_output_dir()
+        topic = state.get("topic", "")
+        output_dir = Config.get_output_dir(topic=topic)
         final_video_path = output_dir / "final_output.mp4"
         
         compose_video(scenes, final_video_path)

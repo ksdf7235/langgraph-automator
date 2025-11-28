@@ -117,7 +117,8 @@ def node_audio_generator(state: Dict) -> Dict:
         if not scenes:
             raise ValueError("상태에 'scenes'가 없거나 비어있습니다.")
         
-        output_dir = Config.get_output_dir()
+        topic = state.get("topic", "")
+        output_dir = Config.get_output_dir(topic=topic)
         updated_scenes = generate_all_audios(scenes, output_dir)
         
         return {

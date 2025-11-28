@@ -25,7 +25,7 @@ logger = setup_logger()
 def parse_args():
     """명령행 인자 파싱"""
     parser = argparse.ArgumentParser(description="YouTube Shorts 자동 생성 에이전트")
-    parser.add_argument("--topic", "-t", type=str, default="AI의 미래", help="비디오 주제")
+    parser.add_argument("--topic", "-t", type=str, default="ai의 미래", help="비디오 주제")
     parser.add_argument("--no-cache", action="store_true", help="캐시 사용 안 함 (처음부터 새로 생성)")
     parser.add_argument("--clear-cache", action="store_true", help="캐시 초기화 후 실행")
     return parser.parse_args()

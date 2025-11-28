@@ -24,6 +24,7 @@ class WorkflowCache:
     STAGE_SCRIPT = "script"
     STAGE_AUDIO = "audio"
     STAGE_IMAGE = "image"
+    STAGE_MOTION = "motion"
     STAGE_VIDEO = "video"
     
     def __init__(self, topic: str):
@@ -35,7 +36,8 @@ class WorkflowCache:
         """
         self.topic = topic
         self.topic_hash = self._hash_topic(topic)
-        self.cache_dir = Config.get_output_dir() / "cache"
+        # 캐시는 주제별 폴더 안에 저장
+        self.cache_dir = Config.get_output_dir(topic=topic) / "cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_file = self.cache_dir / f"{self.topic_hash}.json"
         self.cache_data = self._load_cache()
@@ -83,11 +85,24 @@ class WorkflowCache:
         stage_data = self.cache_data.get("stages", {}).get(stage)
         
         if stage_data:
-            # 파일 존재 여부 확인 (audio, image, video 단계)
-            if stage in [self.STAGE_AUDIO, self.STAGE_IMAGE]:
+            # 파일 존재 여부 확인 (audio, image, motion, video 단계)
+            if stage in [self.STAGE_AUDIO, self.STAGE_IMAGE, self.STAGE_MOTION]:
                 scenes = stage_data.get("scenes", [])
                 for scene in scenes:
-                    path_key = "audio_path" if stage == self.STAGE_AUDIO else "image_path"
+                    if stage == self.STAGE_AUDIO:
+                        path_key = "audio_path"
+                    elif stage == self.STAGE_IMAGE:
+                        path_key = "image_path"
+                    else:  # STAGE_MOTION
+                        # 모션 프레임 경로 확인
+                        motion_frames = scene.get("motion_frames_path", [])
+                        if motion_frames:
+                            for frame_path in motion_frames:
+                                if frame_path and not os.path.exists(frame_path):
+                                    logger.info(f"[캐시] 모션 프레임이 없어 캐시 무효화: {frame_path}")
+                                    return None
+                        continue
+                    
                     path = scene.get(path_key)
                     if path and not os.path.exists(path):
                         logger.info(f"[캐시] 파일이 없어 캐시 무효화: {path}")
@@ -127,7 +142,7 @@ class WorkflowCache:
     
     def get_status(self) -> Dict[str, bool]:
         """각 단계별 캐시 상태 반환"""
-        stages = [self.STAGE_SCRIPT, self.STAGE_AUDIO, self.STAGE_IMAGE, self.STAGE_VIDEO]
+        stages = [self.STAGE_SCRIPT, self.STAGE_AUDIO, self.STAGE_IMAGE, self.STAGE_MOTION, self.STAGE_VIDEO]
         return {stage: self.get_stage(stage) is not None for stage in stages}
 
 
