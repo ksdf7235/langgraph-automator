@@ -134,25 +134,34 @@ def create_video_clip_from_frames(frame_paths: List[str], audio_path: str, fps: 
     try:
         logger.info(f"[비디오 편집] 프레임 시퀀스 클립 생성: {len(frame_paths)}개 프레임, FPS: {fps}")
         
-        # ImageSequenceClip으로 프레임 시퀀스 생성
-        video_clip = ImageSequenceClip(frame_paths, fps=fps)
+        # 오디오 길이에 맞춰 프레임 수 계산
+        target_frame_count = int(audio_duration * fps)
+        current_frame_count = len(frame_paths)
+        current_duration = current_frame_count / fps
         
-        # 오디오 길이에 맞춰 클립 길이 조정
-        if video_clip.duration > audio_duration:
-            video_clip = video_clip.subclip(0, audio_duration)
-        elif video_clip.duration < audio_duration:
+        # 프레임 리스트 조정
+        if current_duration > audio_duration:
+            # 오디오보다 길면 프레임 수를 줄임
+            adjusted_frames = frame_paths[:target_frame_count]
+            logger.debug(f"프레임 수 조정: {current_frame_count}개 -> {len(adjusted_frames)}개 (오디오 길이에 맞춤)")
+        elif current_duration < audio_duration:
             # 프레임이 부족하면 마지막 프레임 반복
-            last_frame = frame_paths[-1]
-            additional_frames_needed = int((audio_duration - video_clip.duration) * fps)
-            extended_frames = frame_paths + [last_frame] * additional_frames_needed
-            video_clip = ImageSequenceClip(extended_frames, fps=fps)
-            video_clip = video_clip.subclip(0, audio_duration)
+            last_frame = frame_paths[-1] if frame_paths else frame_paths[0]
+            additional_frames_needed = target_frame_count - current_frame_count
+            adjusted_frames = frame_paths + [last_frame] * additional_frames_needed
+            logger.debug(f"프레임 수 확장: {current_frame_count}개 -> {len(adjusted_frames)}개 (마지막 프레임 반복)")
+        else:
+            # 길이가 정확히 일치
+            adjusted_frames = frame_paths
+        
+        # ImageSequenceClip으로 프레임 시퀀스 생성
+        video_clip = ImageSequenceClip(adjusted_frames, fps=fps)
         
         # 오디오와 결합
         video_clip = video_clip.with_audio(audio_clip)
         video_clip = video_clip.with_fps(fps)
         
-        logger.debug(f"프레임 시퀀스 비디오 클립 생성 완료: {len(frame_paths)}개 프레임, 길이: {video_clip.duration:.2f}초")
+        logger.debug(f"프레임 시퀀스 비디오 클립 생성 완료: {len(adjusted_frames)}개 프레임, 길이: {video_clip.duration:.2f}초")
         return video_clip
         
     except Exception as e:

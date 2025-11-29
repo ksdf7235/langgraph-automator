@@ -1,7 +1,7 @@
 """
-ComfyUI HTTP API 클라이언트 모듈
+ComfyUI HTTP/WebSocket API 클라이언트 모듈
 
-이 모듈은 ComfyUI 서버를 직접 실행하지 않고, HTTP API를 통해서만 통신합니다.
+이 모듈은 ComfyUI 서버를 직접 실행하지 않고, HTTP API와 WebSocket을 통해 통신합니다.
 ComfyUI 서버는 사용자가 별도로 실행한 상태여야 하며,
 COMFYUI_URL 환경변수에 지정된 HTTP 엔드포인트로만 요청을 보냅니다.
 
@@ -10,6 +10,11 @@ COMFYUI_URL 환경변수에 지정된 HTTP 엔드포인트로만 요청을 보�
 - 서버가 실행되지 않으면 명확한 에러 메시지를 표시합니다
 - stderr/tqdm 충돌 문제를 피하기 위해 subprocess를 사용하지 않습니다
 - tqdm 비활성화는 src/config.py에서 환경변수로 처리됩니다
+
+통신 방식:
+- WebSocket 우선: 프롬프트 실행 완료 대기는 WebSocket을 통해 실시간으로 처리
+- HTTP Fallback: WebSocket 연결 실패 시 HTTP 폴링으로 자동 전환
+- client_id: 모든 /prompt 요청에 client_id를 포함하여 WebSocket 메시지 필터링
 """
 
 import copy
@@ -32,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 class ComfyUIClient:
     """
-    ComfyUI HTTP API 클라이언트
+    ComfyUI HTTP/WebSocket API 클라이언트
     
     이 클래스는 ComfyUI 서버를 직접 실행하지 않습니다.
     ComfyUI 서버는 사용자가 별도로 실행한 상태여야 하며,
@@ -40,6 +45,11 @@ class ComfyUIClient:
     
     중요: ComfyUI 서버 프로세스는 이 코드에서 관리하지 않습니다.
     서버가 실행 중이지 않으면 명확한 에러 메시지를 표시합니다.
+    
+    통신 방식:
+    - WebSocket 우선: 프롬프트 실행 완료 대기는 WebSocket을 통해 실시간으로 처리
+    - HTTP Fallback: WebSocket 연결 실패 시 HTTP 폴링으로 자동 전환
+    - client_id: 모든 /prompt 요청에 client_id를 포함하여 WebSocket 메시지 필터링
     """
     
     def __init__(self, base_url: str = None, ws_url: str = None, timeout: int = None):
@@ -51,26 +61,73 @@ class ComfyUIClient:
         
         Args:
             base_url: ComfyUI 서버 URL (기본값: COMFYUI_URL 환경변수 또는 http://127.0.0.1:8188)
-            ws_url: ComfyUI 웹소켓 URL (기본값: COMFYUI_WS_URL 환경변수 또는 ws://127.0.0.1:8188/ws)
+            ws_url: ComfyUI 웹소켓 URL (기본값: base_url 기반 자동 생성 또는 COMFYUI_WS_URL)
             timeout: 타임아웃 (초, 기본값: COMFYUI_TIMEOUT 환경변수 또는 300)
         """
         # COMFYUI_URL 환경변수를 최우선으로 사용
         if base_url is None:
             base_url = os.getenv("COMFYUI_URL", "http://127.0.0.1:8188")
-        if ws_url is None:
-            ws_url = os.getenv("COMFYUI_WS_URL", "ws://127.0.0.1:8188/ws")
         if timeout is None:
             timeout = Config.COMFYUI_TIMEOUT
         
         # URL 정규화 (끝의 슬래시 제거)
         self.base_url = base_url.rstrip("/")
-        self.ws_url = ws_url.rstrip("/")
         self.timeout = timeout
+        
+        # WebSocket URL 자동 생성 (ws_url이 명시되지 않은 경우)
+        if ws_url is None:
+            ws_url = os.getenv("COMFYUI_WS_URL")
+            if ws_url is None:
+                # base_url을 기반으로 자동 생성
+                if base_url.startswith("https://"):
+                    ws_url = base_url.replace("https://", "wss://") + "/ws"
+                elif base_url.startswith("http://"):
+                    ws_url = base_url.replace("http://", "ws://") + "/ws"
+                else:
+                    # 기본값
+                    ws_url = "ws://127.0.0.1:8188/ws"
+        
+        self.ws_url = ws_url.rstrip("/")
+        
+        # client_id: 인스턴스 생애 전체에서 재사용
         self.client_id = str(uuid.uuid4())
         self.api_key = Config.COMFYUI_API_KEY if hasattr(Config, 'COMFYUI_API_KEY') else ""
         
-        logger.debug(f"ComfyUI 클라이언트 초기화: {self.base_url} (서버는 외부에서 실행되어야 함)")
+        logger.debug(f"ComfyUI 클라이언트 초기화: {self.base_url}")
+        logger.debug(f"  WebSocket URL: {self.ws_url}")
+        logger.debug(f"  Client ID: {self.client_id}")
+    
+    def _open_ws(self) -> websocket.WebSocket:
+        """
+        WebSocket 연결을 생성합니다.
         
+        Returns:
+            WebSocket 연결 객체
+            
+        Raises:
+            RuntimeError: WebSocket 연결 실패 시
+        """
+        ws_url_with_client = f"{self.ws_url}?clientId={self.client_id}"
+        logger.debug(f"WebSocket 연결 시도: {ws_url_with_client}")
+        
+        try:
+            # WebSocket 연결 타임아웃 설정 (연결 시도에만 적용)
+            ws = websocket.create_connection(
+                ws_url_with_client,
+                timeout=10  # 연결 타임아웃은 짧게 설정
+            )
+            # 수신 타임아웃 설정 (메시지 수신 대기 시간)
+            ws.settimeout(1.0)  # 1초마다 타임아웃 체크
+            logger.debug(f"WebSocket 연결 성공 (Client ID: {self.client_id})")
+            return ws
+        except Exception as e:
+            error_msg = (
+                f"ComfyUI WebSocket 연결 실패 ({self.ws_url}): {e}\n"
+                f"서버가 실행 중이고 WebSocket이 활성화되어 있는지 확인해주세요."
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
+    
     def ping(self) -> bool:
         """
         ComfyUI 서버가 실행 중인지 확인합니다.
@@ -1311,15 +1368,14 @@ class ComfyUIClient:
         logger.error(f"히스토리 API로 이미지를 찾지 못했습니다 (프롬프트 ID: {prompt_id})")
         return []
     
-    def wait_for_completion(self, prompt_id: str, timeout: int = None, use_websocket: bool = False) -> List[str]:
+    def wait_for_completion(self, prompt_id: str, timeout: int = None) -> List[str]:
         """
         ComfyUI 이미지 생성 완료를 대기합니다.
-        기본적으로 히스토리 API를 사용하며, use_websocket=True 시 웹소켓을 먼저 시도합니다.
+        WebSocket을 우선 사용하고, 실패 시 HTTP 폴링으로 fallback합니다.
         
         Args:
             prompt_id: 프롬프트 ID
             timeout: 타임아웃 (초, 기본값: self.timeout)
-            use_websocket: 웹소켓 사용 여부 (기본값: False)
             
         Returns:
             생성된 이미지 파일명 리스트
@@ -1327,24 +1383,26 @@ class ComfyUIClient:
         Raises:
             TimeoutError: 타임아웃 발생 시
             ValueError: 이미지가 생성되지 않은 경우
+            RuntimeError: 치명적 에러 발생 시
         """
         timeout = timeout or self.timeout
-        start_time = time.time()
-        images = []
         
-        # 웹소켓 사용 시 먼저 시도
-        if use_websocket:
-            images = self._wait_via_websocket(prompt_id, timeout)
+        # WebSocket 우선 시도
+        if self.ws_url:
+            try:
+                history = self._wait_for_prompt_ws(prompt_id, timeout=timeout)
+                images = self._extract_images_from_history(history, prompt_id)
+                if images:
+                    logger.info(f"WebSocket을 통해 이미지 생성 완료: {len(images)}개 파일")
+                    return images
+                else:
+                    logger.warning("WebSocket에서 이미지를 찾을 수 없어 HTTP 폴링으로 fallback합니다.")
+            except Exception as e:
+                logger.warning(f"WebSocket 대기 실패, HTTP 폴링으로 fallback: {e}")
         
-        # 웹소켓에서 이미지를 받지 못했으면 히스토리 API 사용
-        if not images:
-            logger.info(f"히스토리 API로 이미지 조회 중... (프롬프트 ID: {prompt_id})")
-            images = self._get_history_images(prompt_id, max_retries=10, retry_delay=3)
-        
-        # 타임아웃 체크
-        elapsed_time = time.time() - start_time
-        if elapsed_time > timeout:
-            raise TimeoutError(f"ComfyUI 이미지 생성 타임아웃 ({timeout}초)")
+        # HTTP 폴링 fallback
+        logger.info(f"HTTP 폴링으로 이미지 조회 중... (프롬프트 ID: {prompt_id})")
+        images = self._wait_for_prompt_http(prompt_id, timeout=timeout)
         
         if not images:
             raise ValueError(f"이미지가 생성되지 않았습니다. 프롬프트 ID: {prompt_id}")
@@ -1352,92 +1410,251 @@ class ComfyUIClient:
         logger.info(f"이미지 생성 완료: {len(images)}개 파일")
         return images
     
-    def _wait_via_websocket(self, prompt_id: str, timeout: int) -> List[str]:
+    def _wait_for_prompt_ws(self, prompt_id: str, timeout: int = None) -> Dict:
         """
-        웹소켓을 통해 이미지 생성 완료를 대기합니다.
+        WebSocket을 통해 프롬프트 실행 완료를 대기합니다.
         
         Args:
             prompt_id: 프롬프트 ID
-            timeout: 타임아웃 (초)
+            timeout: 타임아웃 (초, 기본값: self.timeout)
             
         Returns:
-            생성된 이미지 파일명 리스트 (실패 시 빈 리스트)
+            history 딕셔너리 (전체)
+            
+        Raises:
+            RuntimeError: 실행 에러 발생 시
+            TimeoutError: 타임아웃 발생 시
         """
-        ws_url = f"{self.ws_url}?clientId={self.client_id}"
+        timeout = timeout or self.timeout
+        start_time = time.time()
         
-        images = []
-        completed = False
-        execution_error = None
-        
-        def on_message(ws, message):
-            nonlocal images, completed, execution_error
-            try:
-                if isinstance(message, str):
+        ws = None
+        try:
+            # WebSocket 연결
+            ws = self._open_ws()
+            
+            completed = False
+            execution_error = None
+            
+            logger.info(f"WebSocket으로 프롬프트 실행 대기 중... (프롬프트 ID: {prompt_id}, 타임아웃: {timeout}초)")
+            
+            while not completed:
+                # 타임아웃 체크
+                elapsed = time.time() - start_time
+                if elapsed > timeout:
+                    raise TimeoutError(f"ComfyUI 프롬프트 실행 타임아웃 ({timeout}초)")
+                
+                # WebSocket 메시지 수신 (타임아웃 설정)
+                try:
+                    message = ws.recv()
+                    if not message:
+                        time.sleep(0.1)
+                        continue
+                except websocket.WebSocketTimeoutException:
+                    # 타임아웃은 정상 (계속 대기하며 타임아웃 체크)
+                    elapsed = time.time() - start_time
+                    if elapsed > timeout:
+                        raise TimeoutError(f"ComfyUI 프롬프트 실행 타임아웃 ({timeout}초)")
+                    continue
+                except Exception as e:
+                    logger.warning(f"WebSocket 메시지 수신 오류: {e}")
+                    time.sleep(0.1)
+                    continue
+                
+                # 메시지 파싱
+                try:
                     data = json.loads(message)
                     message_type = data.get("type")
                     
-                    logger.debug(f"웹소켓 메시지 수신: type={message_type}")
+                    logger.debug(f"WebSocket 메시지 수신: type={message_type}")
                     
-                    if message_type == "executed":
+                    # executing 메시지: 프롬프트 실행 완료 확인
+                    if message_type == "executing":
                         exec_data = data.get("data", {})
                         exec_prompt_id = exec_data.get("prompt_id")
+                        node_id = exec_data.get("node")
                         
                         if exec_prompt_id == prompt_id:
-                            if "error" in exec_data:
-                                execution_error = exec_data.get("error")
-                                logger.error(f"ComfyUI 실행 에러: {execution_error}")
+                            # node가 None이면 프롬프트 전체 실행 완료
+                            if node_id is None:
+                                logger.info(f"프롬프트 실행 완료 (프롬프트 ID: {prompt_id})")
                                 completed = True
-                                ws.close()
-                                return
+                                break
+                            else:
+                                logger.debug(f"노드 실행 중: {node_id}")
+                    
+                    # execution_error 메시지: 실행 에러 처리
+                    elif message_type == "execution_error":
+                        error_data = data.get("data", {})
+                        error_prompt_id = error_data.get("prompt_id")
+                        
+                        if error_prompt_id == prompt_id:
+                            # 에러 상세 정보 추출
+                            error_details = self._extract_error_details(error_data, {})
+                            is_fatal = self._is_fatal_error(error_data)
                             
-                            output = exec_data.get("output", {})
-                            for node_id, node_output in output.items():
-                                if "images" in node_output:
-                                    for img_info in node_output["images"]:
-                                        filename = img_info.get("filename")
-                                        if filename:
-                                            images.append(filename)
+                            # 에러 로깅 (기존 HTTP 경로와 동일한 형식)
+                            error_msg = (
+                                f"ComfyUI 실행 실패\n"
+                                f"  프롬프트 ID: {prompt_id}\n"
+                                f"  노드 ID: {error_details['node_id']}\n"
+                                f"  노드 타입: {error_details['node_type']}\n"
+                                f"  예외 타입: {error_details['exception_type']}\n"
+                                f"  예외 메시지: {error_details['exception_message']}"
+                            )
                             
+                            # KSampler인 경우 주요 입력값 추가
+                            if error_details.get('ksampler_inputs'):
+                                ksampler = error_details['ksampler_inputs']
+                                error_msg += (
+                                    f"\n  KSampler 입력값:\n"
+                                    f"    seed: {ksampler.get('seed')}\n"
+                                    f"    steps: {ksampler.get('steps')}\n"
+                                    f"    cfg: {ksampler.get('cfg')}\n"
+                                    f"    sampler_name: {ksampler.get('sampler_name')}\n"
+                                    f"    scheduler: {ksampler.get('scheduler')}\n"
+                                    f"    denoise: {ksampler.get('denoise')}"
+                                )
+                            
+                            # 치명적 에러인 경우 추가 안내
+                            if is_fatal:
+                                if "Errno 22" in error_details.get('exception_message', ''):
+                                    error_msg += (
+                                        f"\n\n[중요] 이 에러는 ComfyUI 서버의 tqdm/stderr 충돌 문제입니다.\n"
+                                        f"해결 방법:\n"
+                                        f"  1. ComfyUI 서버를 완전히 종료하세요\n"
+                                        f"  2. PowerShell에서 다음 명령으로 환경변수를 설정하고 서버를 재시작하세요:\n"
+                                        f"     $env:TQDM_DISABLE='1'\n"
+                                        f"     $env:TQDM_MININTERVAL='999999'\n"
+                                        f"     $env:TQDM_NCOLS='0'\n"
+                                        f"     python main.py --port 8188\n"
+                                        f"  3. 또는 ComfyUI 서버 시작 스크립트에 환경변수를 추가하세요\n"
+                                        f"\n"
+                                        f"이 에러가 발생한 프롬프트 전체 내용은 logs/comfyui_prompts/{prompt_id}.json에 저장되어 있습니다.\n"
+                                        f"상세 DEBUG 로그는 logs/comfyui_client_debug.log를 확인하세요."
+                                    )
+                                else:
+                                    error_msg += (
+                                        f"\n\n[중요] 이 에러는 치명적 에러로, 같은 프롬프트로 재시도해도 해결되지 않습니다.\n"
+                                        f"ComfyUI 서버 측 문제일 수도 있지만, 현재 프롬프트나 노드 설정이 잘못되었을 가능성이 높습니다.\n"
+                                        f"에러 로그에 출력된 노드 입력값(seed, steps, cfg 등)을 먼저 확인해보세요.\n"
+                                        f"이 에러가 발생한 프롬프트 전체 내용은 logs/comfyui_prompts/{prompt_id}.json에 저장되어 있습니다.\n"
+                                        f"상세 DEBUG 로그는 logs/comfyui_client_debug.log를 확인하세요."
+                                    )
+                            
+                            logger.error(f"프롬프트 ID {prompt_id} {error_msg}")
+                            execution_error = error_msg
                             completed = True
-                            ws.close()
-                            
+                            break
+                    
+                    # progress 메시지: 진행률 로깅
                     elif message_type == "progress":
                         progress_data = data.get("data", {})
                         progress = progress_data.get("value", 0)
                         max_progress = progress_data.get("max", 0)
                         if max_progress > 0:
                             logger.debug(f"ComfyUI 진행률: {progress}/{max_progress}")
-                        
-            except Exception as e:
-                logger.error(f"웹소켓 메시지 처리 오류: {e}")
-        
-        def on_error(ws, error):
-            logger.debug(f"ComfyUI 웹소켓 오류: {error}")
-        
-        def on_close(ws, close_status_code, close_msg):
-            logger.debug(f"ComfyUI 웹소켓 연결 종료")
-        
-        def on_open(ws):
-            logger.debug("ComfyUI 웹소켓 연결 성공")
-        
-        try:
-            logger.debug(f"웹소켓 연결 시도: {ws_url}")
-            ws = websocket.WebSocketApp(
-                ws_url,
-                on_message=on_message,
-                on_error=on_error,
-                on_close=on_close,
-                on_open=on_open
-            )
-            ws.run_forever(ping_interval=30, ping_timeout=10)
+                    
+                except json.JSONDecodeError as e:
+                    logger.warning(f"WebSocket 메시지 JSON 파싱 실패: {e}, 메시지: {message[:100]}")
+                    continue
+                except Exception as e:
+                    logger.warning(f"WebSocket 메시지 처리 오류: {e}")
+                    continue
             
-        except Exception as e:
-            logger.debug(f"웹소켓 연결 실패: {e}")
+            # 에러가 있으면 예외 발생
+            if execution_error:
+                raise RuntimeError(execution_error)
+            
+            # 완료 후 /history 조회
+            logger.debug(f"프롬프트 실행 완료, history 조회 중... (프롬프트 ID: {prompt_id})")
+            history = self._get_history(prompt_id)
+            
+            # history 파일 저장
+            if history and prompt_id in history:
+                self._save_history_to_file(prompt_id, history)
+            
+            return history
+            
+        finally:
+            # WebSocket 종료
+            if ws:
+                try:
+                    ws.close()
+                    logger.debug("WebSocket 연결 종료")
+                except Exception as e:
+                    logger.warning(f"WebSocket 종료 오류: {e}")
+    
+    def _get_history(self, prompt_id: str) -> Dict:
+        """
+        ComfyUI /history API를 호출하여 history를 가져옵니다.
         
-        if execution_error:
-            raise RuntimeError(f"ComfyUI 실행 에러: {execution_error}")
+        Args:
+            prompt_id: 프롬프트 ID
+            
+        Returns:
+            history 딕셔너리 (전체)
+            
+        Raises:
+            RuntimeError: API 호출 실패 시
+        """
+        try:
+            url = f"{self.base_url}/history"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            history = response.json()
+            return history
+        except Exception as e:
+            error_msg = f"ComfyUI history API 호출 실패: {e}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
+    
+    def _extract_images_from_history(self, history: Dict, prompt_id: str) -> List[str]:
+        """
+        history에서 이미지 파일명을 추출합니다.
+        
+        Args:
+            history: ComfyUI history 딕셔너리 (전체)
+            prompt_id: 프롬프트 ID
+            
+        Returns:
+            이미지 파일명 리스트
+        """
+        if not isinstance(history, dict) or prompt_id not in history:
+            return []
+        
+        prompt_data = history[prompt_id]
+        outputs = prompt_data.get("outputs", {})
+        images = []
+        
+        for node_id, node_output in outputs.items():
+            if isinstance(node_output, dict) and "images" in node_output:
+                images_list = node_output["images"]
+                if isinstance(images_list, list):
+                    for img_info in images_list:
+                        if isinstance(img_info, dict):
+                            filename = img_info.get("filename")
+                            if filename:
+                                images.append(filename)
+                        elif isinstance(img_info, str):
+                            images.append(img_info)
         
         return images
+    
+    def _wait_for_prompt_http(self, prompt_id: str, timeout: int = None) -> List[str]:
+        """
+        HTTP 폴링을 통해 프롬프트 실행 완료를 대기합니다 (fallback용).
+        
+        Args:
+            prompt_id: 프롬프트 ID
+            timeout: 타임아웃 (초, 기본값: self.timeout)
+            
+        Returns:
+            이미지 파일명 리스트
+        """
+        # 기존 _get_history_images 메서드 재사용
+        return self._get_history_images(prompt_id, max_retries=int(timeout or self.timeout) // 3, retry_delay=3)
+    
     
     def download_result(self, filename: str, output_path: str) -> None:
         """
@@ -1740,6 +1957,10 @@ def main_cli():
     try:
         # ComfyUI 클라이언트 초기화
         client = ComfyUIClient()
+        
+        # DEBUG: WebSocket 정보 출력
+        logger.debug(f"WebSocket URL: {client.ws_url}")
+        logger.debug(f"Client ID: {client.client_id}")
         
         # 헬스체크
         print(f"ComfyUI 서버 연결 확인 중... ({client.base_url})")

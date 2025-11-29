@@ -61,6 +61,14 @@ try:
         
         def __iter__(self):
             return iter([])
+        
+        @staticmethod
+        def write(s, file=None, end="\n", nolock=False):
+            """
+            tqdm.write() 호출을 처리합니다.
+            MoviePy의 proglog가 이 메서드를 호출하므로 no-op으로 처리합니다.
+            """
+            pass
     
     # tqdm.tqdm을 비활성화된 버전으로 교체
     tqdm.tqdm = DisabledTqdm
