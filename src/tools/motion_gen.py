@@ -1,6 +1,12 @@
 """
 Wan2.2 I2V 모션 생성 모듈
+
 ComfyUI의 Wan2.2 Distill I2V 모델을 사용하여 정적 이미지를 애니메이션 프레임 시퀀스로 변환합니다.
+
+중요:
+- ComfyUI 서버는 외부에서 이미 실행되어야 합니다
+- 이 모듈은 HTTP API만 사용하며, 서버 프로세스를 관리하지 않습니다
+- ComfyUIClient를 내부적으로 사용하여 HTTP 요청을 보냅니다
 """
 
 import json
@@ -26,18 +32,31 @@ class MotionGenerator:
         """
         모션 생성기 초기화
         
+        ComfyUI 서버는 외부에서 이미 실행되어야 합니다.
+        이 클래스는 서버를 실행하지 않고 HTTP API만 사용합니다.
+        
         Args:
             client: ComfyUI 클라이언트 (None이면 새로 생성)
         """
         self.client = client or ComfyUIClient()
+        
+        # 서버 헬스체크 (선택적)
+        try:
+            self.client.check_health()
+            logger.debug("ComfyUI 서버 헬스체크 통과 (모션 생성)")
+        except RuntimeError as e:
+            logger.warning(f"ComfyUI 서버 헬스체크 실패 (모션 생성): {e}")
+            # 헬스체크 실패해도 계속 진행 (실제 API 호출 시 에러 발생)
         self.motion_fps = Config.MOTION_FPS
         self.motion_duration = Config.MOTION_DURATION
         self.frames_per_scene = int(self.motion_fps * self.motion_duration)
         self.i2v_steps = Config.I2V_STEPS
         self.i2v_guidance = Config.I2V_GUIDANCE
-        self.i2v_checkpoint = Config.I2V_CHECKPOINT
-        self.i2v_lora = Config.I2V_LORA
         self.i2v_node_type = Config.I2V_NODE_TYPE
+        self.i2v_clip_name = Config.I2V_CLIP_NAME
+        self.i2v_vae_name = Config.I2V_VAE_NAME
+        self.i2v_unet_name = Config.I2V_UNET_NAME
+        self.i2v_model_sampling_shift = Config.I2V_MODEL_SAMPLING_SHIFT
     
     def _get_image_dimensions(self, image_path: str) -> Tuple[int, int]:
         """
@@ -56,12 +75,14 @@ class MotionGenerator:
             logger.warning(f"이미지 해상도 감지 실패, 기본값 사용: {e}")
             return (1024, 1024)  # 기본 해상도
     
-    def create_wan2_i2v_workflow(self, image_filename: str, width: int, height: int, seed: int = None) -> Dict:
+    def create_wan2_i2v_workflow(self, image_filename: str, prompt: str, width: int, height: int, seed: int = None) -> Dict:
         """
         Wan2.2 I2V 워크플로우를 생성합니다.
+        JSON 파일의 구조를 기반으로 올바른 워크플로우를 생성합니다.
         
         Args:
             image_filename: 입력 이미지 파일명 (ComfyUI에서 접근 가능한 이름)
+            prompt: 모션 프롬프트
             width: 이미지 너비
             height: 이미지 높이
             seed: 시드값 (None이면 랜덤)
@@ -72,13 +93,23 @@ class MotionGenerator:
         if seed is None:
             seed = random.randint(0, 2**32 - 1)
         
-        # Wan2.2 I2V 워크플로우 구조
-        # 노드 구조:
+        # 프레임 개수 계산 (length는 프레임 수)
+        length = self.frames_per_scene
+        
+        # Negative prompt (기본값)
+        negative_prompt = "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"
+        
+        # Wan2.2 I2V 워크플로우 구조 (JSON 기반):
         # 1. LoadImage - 입력 이미지 로드
-        # 2. CheckpointLoaderSimple - Wan2.2-Distill-Loras 체크포인트
-        # 3. LoraLoader - Wan2.2 I2V Distill LoRA
-        # 4. I2V 노드 (Wan2.2 전용) - steps, guidance, fps, motion_length 설정
-        # 5. SaveImage - 프레임 저장
+        # 2. CLIPLoader - CLIP 텍스트 인코더 로드
+        # 3. CLIPTextEncode - 프롬프트 인코딩 (positive, negative)
+        # 4. VAELoader - VAE 로드
+        # 5. UNETLoader - UNet 모델 로드 (high_noise)
+        # 6. ModelSamplingSD3 - 모델 샘플링 설정
+        # 7. WanImageToVideo - I2V 변환 (CONDITIONING, LATENT 출력)
+        # 8. KSamplerAdvanced - 샘플링
+        # 9. VAEDecode - 디코딩
+        # 10. SaveImage - 프레임 저장
         
         workflow = {
             "1": {
@@ -90,43 +121,98 @@ class MotionGenerator:
             },
             "2": {
                 "inputs": {
-                    "ckpt_name": self.i2v_checkpoint
+                    "clip_name": self.i2v_clip_name,
+                    "type": "wan",
+                    "device": "default"
                 },
-                "class_type": "CheckpointLoaderSimple",
-                "_meta": {"title": "Load Checkpoint (Wan2.2-Distill-Loras)"}
+                "class_type": "CLIPLoader",
+                "_meta": {"title": "Load CLIP"}
             },
             "3": {
                 "inputs": {
-                    "model": ["2", 0],
-                    "clip": ["2", 1],
-                    "lora_name": self.i2v_lora,
-                    "strength_model": 1.0,
-                    "strength_clip": 1.0
+                    "clip": ["2", 0],
+                    "text": prompt
                 },
-                "class_type": "LoraLoader",
-                "_meta": {"title": "Load LoRA (Wan2.2 I2V Distill)"}
+                "class_type": "CLIPTextEncode",
+                "_meta": {"title": "CLIP Text Encode (Positive Prompt)"}
             },
             "4": {
                 "inputs": {
-                    "image": ["1", 0],
-                    "model": ["3", 0],
-                    "clip": ["3", 1],
-                    "vae": ["2", 2],
-                    "steps": self.i2v_steps,
-                    "guidance": self.i2v_guidance,
-                    "fps": self.motion_fps,
-                    "motion_length": int(self.motion_duration),
-                    "width": width,
-                    "height": height,
-                    "seed": seed
+                    "clip": ["2", 0],
+                    "text": negative_prompt
                 },
-                "class_type": self.i2v_node_type,
-                "_meta": {"title": "Wan2.2 I2V Generation"}
+                "class_type": "CLIPTextEncode",
+                "_meta": {"title": "CLIP Text Encode (Negative Prompt)"}
             },
             "5": {
                 "inputs": {
+                    "vae_name": self.i2v_vae_name
+                },
+                "class_type": "VAELoader",
+                "_meta": {"title": "Load VAE"}
+            },
+            "6": {
+                "inputs": {
+                    "unet_name": self.i2v_unet_name,
+                    "weight_dtype": "default"
+                },
+                "class_type": "UNETLoader",
+                "_meta": {"title": "Load UNet (High Noise)"}
+            },
+            "7": {
+                "inputs": {
+                    "model": ["6", 0],
+                    "shift": self.i2v_model_sampling_shift
+                },
+                "class_type": "ModelSamplingSD3",
+                "_meta": {"title": "Model Sampling SD3"}
+            },
+            "8": {
+                "inputs": {
+                    "positive": ["3", 0],
+                    "negative": ["4", 0],
+                    "vae": ["5", 0],
+                    "clip_vision_output": None,
+                    "start_image": ["1", 0],
+                    "width": width,
+                    "height": height,
+                    "length": length,
+                    "batch_size": 1
+                },
+                "class_type": "WanImageToVideo",
+                "_meta": {"title": "Wan Image to Video"}
+            },
+            "9": {
+                "inputs": {
+                    "model": ["7", 0],
+                    "positive": ["8", 0],
+                    "negative": ["8", 1],
+                    "latent_image": ["8", 2],
+                    "add_noise": "enable",
+                    "noise_seed": seed,
+                    "steps": self.i2v_steps,
+                    "cfg": self.i2v_guidance,
+                    "sampler_name": "euler",
+                    "scheduler": "simple",
+                    "start_at_step": 0,
+                    "end_at_step": 10,
+                    "return_with_leftover_noise": "enable"
+                },
+                "class_type": "KSamplerAdvanced",
+                "_meta": {"title": "KSampler Advanced"}
+            },
+            "10": {
+                "inputs": {
+                    "samples": ["9", 0],
+                    "vae": ["5", 0]
+                },
+                "class_type": "VAEDecode",
+                "_meta": {"title": "VAE Decode"}
+            },
+            "11": {
+                "inputs": {
                     "filename_prefix": "wan2_i2v",
-                    "images": ["4", 0]
+                    "images": ["10", 0]
                 },
                 "class_type": "SaveImage",
                 "_meta": {"title": "Save Image Frames"}
@@ -154,6 +240,14 @@ class MotionGenerator:
             with open(image_path, 'rb') as f:
                 files = {'image': (os.path.basename(image_path), f, 'image/png')}
                 response = requests.post(upload_url, files=files, timeout=60)
+                
+                # 연결 실패 시 명확한 에러 메시지
+                if response.status_code == 404:
+                    raise RuntimeError(
+                        f"ComfyUI 서버({self.client.base_url})를 찾을 수 없습니다.\n"
+                        "서버가 실행 중인지 확인해주세요."
+                    )
+                
                 response.raise_for_status()
                 
                 result = response.json()
@@ -162,10 +256,28 @@ class MotionGenerator:
                 logger.info(f"[모션 생성] 이미지 업로드 완료: {uploaded_filename}")
                 return uploaded_filename
                 
+        except requests.ConnectionError as e:
+            error_msg = (
+                f"ComfyUI 서버({self.client.base_url})에 연결할 수 없습니다.\n"
+                f"서버를 수동으로 실행한 뒤 다시 시도해주세요.\n"
+                f"이미지 파일: {image_path}"
+            )
+            logger.error(f"[모션 생성] 이미지 업로드 실패: {error_msg}")
+            raise RuntimeError(error_msg) from e
+        except requests.RequestException as e:
+            error_msg = (
+                f"이미지 업로드 실패 ({self.client.base_url}): {e}\n"
+                f"이미지 파일: {image_path}\n"
+                "서버가 실행 중이고 URL이 올바른지 확인해주세요."
+            )
+            logger.error(f"[모션 생성] {error_msg}")
+            raise RuntimeError(error_msg) from e
         except Exception as e:
             logger.error(f"[모션 생성] 이미지 업로드 실패: {e}")
-            # 업로드 실패 시 파일명만 반환 (이미 output 폴더에 있을 수 있음)
-            return os.path.basename(image_path)
+            raise RuntimeError(
+                f"이미지 업로드 중 예상치 못한 오류: {e}\n"
+                f"이미지 파일: {image_path}"
+            ) from e
     
     def generate_motion_frames(self, image_path: str, prompt: str, output_dir: Path, scene_index: int) -> List[str]:
         """
@@ -204,7 +316,7 @@ class MotionGenerator:
             
             # Wan2.2 I2V 워크플로우 생성
             seed = random.randint(0, 2**32 - 1)
-            workflow = self.create_wan2_i2v_workflow(image_filename, width, height, seed)
+            workflow = self.create_wan2_i2v_workflow(image_filename, prompt, width, height, seed)
             
             logger.info(
                 f"[모션 생성] Wan2.2 I2V 워크플로우 생성 완료 "
@@ -350,6 +462,17 @@ def node_motion_generator(state: Dict) -> Dict:
             "scenes": updated_scenes
         }
         
+    except RuntimeError as e:
+        # 서버 연결 실패 등 명확한 에러는 사용자 친화적 메시지로 전달
+        error_msg = str(e)
+        if "접속할 수 없습니다" in error_msg or "연결할 수 없습니다" in error_msg:
+            logger.error(f"[모션 생성 노드] ComfyUI 서버 연결 실패: {e}")
+            raise RuntimeError(
+                f"ComfyUI 서버에 연결할 수 없습니다.\n"
+                f"서버를 수동으로 실행한 뒤 다시 시도해주세요.\n"
+                f"상세: {error_msg}"
+            ) from e
+        raise
     except Exception as e:
         logger.error(f"[모션 생성 노드] 오류: {e}", exc_info=True)
         raise

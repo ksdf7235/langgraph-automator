@@ -22,6 +22,54 @@ else:
     # .env 파일이 없어도 기본값으로 동작
     print(f"[Config] .env 파일을 찾을 수 없습니다. 기본값을 사용합니다: {_env_path}")
 
+# ============================================================================
+# ComfyUI tqdm 비활성화 패치
+# ============================================================================
+# ComfyUI 서버 내부의 tqdm이 stderr를 사용하면서 OSError [Errno 22]를 발생시킬 수 있습니다.
+# 환경변수를 설정하여 tqdm을 비활성화합니다.
+# 참고: ComfyUI 서버는 별도 프로세스이므로, 서버 실행 시에도 이 환경변수가 설정되어야 합니다.
+
+# tqdm 비활성화 환경변수 설정 (이미 설정되어 있지 않은 경우에만)
+if "TQDM_DISABLE" not in os.environ:
+    os.environ["TQDM_DISABLE"] = "1"
+    # tqdm이 이 환경변수를 확인하지 않는 경우를 대비해 추가 환경변수도 설정
+    os.environ["TQDM_MININTERVAL"] = "999999"  # 매우 큰 값으로 업데이트 간격 최소화
+    os.environ["TQDM_NCOLS"] = "0"  # 컬럼 수 0으로 설정하여 출력 최소화
+
+# tqdm 모듈이 이미 import된 경우를 대비한 monkey patch
+try:
+    import tqdm
+    # tqdm의 기본 동작을 no-op으로 변경
+    original_tqdm = tqdm.tqdm
+    
+    class DisabledTqdm:
+        """비활성화된 tqdm 클래스 (no-op)"""
+        def __init__(self, *args, **kwargs):
+            pass
+        
+        def __enter__(self):
+            return self
+        
+        def __exit__(self, *args):
+            return False
+        
+        def update(self, n=1):
+            pass
+        
+        def close(self):
+            pass
+        
+        def __iter__(self):
+            return iter([])
+    
+    # tqdm.tqdm을 비활성화된 버전으로 교체
+    tqdm.tqdm = DisabledTqdm
+    tqdm.trange = lambda *args, **kwargs: range(*args)
+    
+except ImportError:
+    # tqdm이 설치되지 않은 경우 무시
+    pass
+
 
 class Config:
     """애플리케이션 설정 클래스"""
@@ -58,11 +106,14 @@ class Config:
     MOTION_FPS: int = int(os.getenv("MOTION_FPS", "12"))  # 모션 프레임레이트
     MOTION_DURATION: float = float(os.getenv("MOTION_DURATION", "3.0"))  # 장면당 모션 길이 (초)
     MOTION_MODEL_TYPE: str = os.getenv("MOTION_MODEL_TYPE", "wan2.2_distill")  # 모션 모델 타입
-    I2V_CHECKPOINT: str = os.getenv("I2V_CHECKPOINT", "Wan2.2-Distill-Loras.safetensors")  # I2V 체크포인트 모델
-    I2V_LORA: str = os.getenv("I2V_LORA", "Wan2.2-I2V-Distill-LORA.safetensors")  # I2V LoRA 모델
-    I2V_NODE_TYPE: str = os.getenv("I2V_NODE_TYPE", "ImageToVideo")  # I2V 노드 타입 (Wan2I2V, ImageToVideo, I2V 등)
+    I2V_NODE_TYPE: str = os.getenv("I2V_NODE_TYPE", "WanImageToVideo")  # I2V 노드 타입 (WanImageToVideo 기본값)
     I2V_STEPS: int = int(os.getenv("I2V_STEPS", "4"))  # I2V 추론 스텝 (Lightning/Distill 4-step)
     I2V_GUIDANCE: float = float(os.getenv("I2V_GUIDANCE", "3.5"))  # I2V Guidance 스케일
+    # Wan2.2 모델 파일명 (JSON 워크플로우 기반)
+    I2V_CLIP_NAME: str = os.getenv("I2V_CLIP_NAME", "umt5_xxl_fp8_e4m3fn_scaled.safetensors")  # CLIP 텍스트 인코더
+    I2V_VAE_NAME: str = os.getenv("I2V_VAE_NAME", "wan_2.1_vae.safetensors")  # VAE 모델
+    I2V_UNET_NAME: str = os.getenv("I2V_UNET_NAME", "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors")  # UNet 모델 (high_noise)
+    I2V_MODEL_SAMPLING_SHIFT: float = float(os.getenv("I2V_MODEL_SAMPLING_SHIFT", "8.0"))  # ModelSamplingSD3 shift 값
     
     @classmethod
     def get_output_dir(cls, topic: str = None) -> Path:
