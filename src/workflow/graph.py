@@ -1,6 +1,12 @@
 """
-LangGraph 워크플로우 정의 모듈
+LangGraph 워크플로우 정의 모듈 (메인 오케스트레이터)
 상태 정의, 노드 등록, 그래프 구성을 담당합니다.
+
+이 모듈은 메인 오케스트레이터 그래프를 정의하며,
+3개의 서브그래프를 노드처럼 호출합니다:
+- Script Pipeline 서브그래프
+- Asset Generation 서브그래프
+- Video Assembly 서브그래프
 """
 
 import logging
@@ -10,12 +16,10 @@ from functools import wraps
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
-from src.agents.script_writer import node_script_writer
-from src.agents.tts import node_audio_generator
-from src.agents.vision import node_visual_generator
-from src.tools.motion_gen import node_motion_generator
-from src.tools.video_editor import node_video_editor
 from src.utils.cache import get_cache, WorkflowCache
+from src.workflow.script_graph import build_script_graph
+from src.workflow.asset_graph import build_asset_graph
+from src.workflow.video_graph import build_video_graph
 
 logger = logging.getLogger(__name__)
 
@@ -107,42 +111,49 @@ def with_cache(stage: str, result_keys: List[str]):
 
 
 # ============================================================================
-# 노드 래퍼 (캐싱 + 재시도)
+# 서브그래프 래퍼 노드
 # ============================================================================
 
-@with_cache(WorkflowCache.STAGE_SCRIPT, ["scenes"])
-@retry_node(max_retries=2, delay=2.0)
-def node_script_writer_with_retry(state: VideoState) -> VideoState:
-    """대본 작성 노드 (캐싱 + 재시도)"""
-    return node_script_writer(state)
+def node_script_pipeline(state: VideoState) -> VideoState:
+    """
+    Script Pipeline 서브그래프를 호출하는 노드
+    
+    이 노드는 Script Pipeline 서브그래프를 실행하여
+    topic을 받아 scenes(대본 및 이미지 프롬프트)를 생성합니다.
+    """
+    logger.info("[메인 오케스트레이터] Script Pipeline 시작")
+    script_graph = build_script_graph()
+    result = script_graph.invoke(state)
+    logger.info("[메인 오케스트레이터] Script Pipeline 완료")
+    return result
 
 
-@with_cache(WorkflowCache.STAGE_AUDIO, ["scenes"])
-@retry_node(max_retries=2, delay=1.0)
-def node_audio_generator_with_retry(state: VideoState) -> VideoState:
-    """오디오 생성 노드 (캐싱 + 재시도)"""
-    return node_audio_generator(state)
+def node_asset_pipeline(state: VideoState) -> VideoState:
+    """
+    Asset Generation 서브그래프를 호출하는 노드
+    
+    이 노드는 Asset Generation 서브그래프를 실행하여
+    scenes 정보를 받아 오디오, 이미지, 모션 등 실제 에셋을 생성합니다.
+    """
+    logger.info("[메인 오케스트레이터] Asset Generation 시작")
+    asset_graph = build_asset_graph()
+    result = asset_graph.invoke(state)
+    logger.info("[메인 오케스트레이터] Asset Generation 완료")
+    return result
 
 
-@with_cache(WorkflowCache.STAGE_IMAGE, ["scenes"])
-@retry_node(max_retries=2, delay=3.0)
-def node_visual_generator_with_retry(state: VideoState) -> VideoState:
-    """이미지 생성 노드 (캐싱 + 재시도)"""
-    return node_visual_generator(state)
-
-
-@with_cache(WorkflowCache.STAGE_MOTION, ["scenes"])
-@retry_node(max_retries=2, delay=3.0)
-def node_motion_generator_with_retry(state: VideoState) -> VideoState:
-    """모션 생성 노드 (캐싱 + 재시도)"""
-    return node_motion_generator(state)
-
-
-@with_cache(WorkflowCache.STAGE_VIDEO, ["final_video_path"])
-@retry_node(max_retries=1, delay=2.0)
-def node_video_editor_with_retry(state: VideoState) -> VideoState:
-    """비디오 편집 노드 (캐싱 + 재시도)"""
-    return node_video_editor(state)
+def node_video_pipeline(state: VideoState) -> VideoState:
+    """
+    Video Assembly 서브그래프를 호출하는 노드
+    
+    이 노드는 Video Assembly 서브그래프를 실행하여
+    scenes 정보를 받아 최종 비디오를 생성합니다.
+    """
+    logger.info("[메인 오케스트레이터] Video Assembly 시작")
+    video_graph = build_video_graph()
+    result = video_graph.invoke(state)
+    logger.info("[메인 오케스트레이터] Video Assembly 완료")
+    return result
 
 
 # ============================================================================
@@ -151,7 +162,12 @@ def node_video_editor_with_retry(state: VideoState) -> VideoState:
 
 def create_video_graph(checkpoint: bool = False) -> StateGraph:
     """
-    LangGraph StateGraph를 생성하고 노드들을 연결합니다.
+    메인 오케스트레이터 그래프를 생성하고 서브그래프들을 연결합니다.
+    
+    이 그래프는 3개의 서브그래프를 순차적으로 호출합니다:
+    1. Script Pipeline: topic → scenes (대본 및 이미지 프롬프트)
+    2. Asset Generation: scenes → scenes (오디오, 이미지, 모션 에셋 생성)
+    3. Video Assembly: scenes → final_video_path (최종 비디오 생성)
     
     Args:
         checkpoint: 체크포인트 사용 여부 (메모리 기반)
@@ -159,7 +175,7 @@ def create_video_graph(checkpoint: bool = False) -> StateGraph:
     Returns:
         컴파일된 StateGraph
     """
-    logger.info("비디오 생성 그래프 구성 중...")
+    logger.info("메인 오케스트레이터 그래프 구성 중...")
     
     # 그래프 생성
     if checkpoint:
@@ -168,26 +184,22 @@ def create_video_graph(checkpoint: bool = False) -> StateGraph:
     else:
         workflow = StateGraph(VideoState)
     
-    # 노드 추가
-    workflow.add_node("script_writer", node_script_writer_with_retry)
-    workflow.add_node("audio_generator", node_audio_generator_with_retry)
-    workflow.add_node("visual_generator", node_visual_generator_with_retry)
-    workflow.add_node("motion_generator", node_motion_generator_with_retry)
-    workflow.add_node("video_editor", node_video_editor_with_retry)
+    # 서브그래프 노드 추가
+    workflow.add_node("script_pipeline", node_script_pipeline)
+    workflow.add_node("asset_pipeline", node_asset_pipeline)
+    workflow.add_node("video_pipeline", node_video_pipeline)
     
     # 엣지 연결 (순차 실행)
-    workflow.set_entry_point("script_writer")
-    workflow.add_edge("script_writer", "audio_generator")
-    workflow.add_edge("audio_generator", "visual_generator")
-    workflow.add_edge("visual_generator", "motion_generator")  # 이미지 생성 후 모션 생성
-    workflow.add_edge("motion_generator", "video_editor")  # 모션 생성 후 비디오 편집
-    workflow.add_edge("video_editor", END)
+    workflow.set_entry_point("script_pipeline")
+    workflow.add_edge("script_pipeline", "asset_pipeline")
+    workflow.add_edge("asset_pipeline", "video_pipeline")
+    workflow.add_edge("video_pipeline", END)
     
     # 컴파일
     if not checkpoint:
         workflow = workflow.compile()
     
-    logger.info("비디오 생성 그래프 구성 완료")
+    logger.info("메인 오케스트레이터 그래프 구성 완료")
     return workflow
 
 

@@ -48,7 +48,8 @@ def call_ollama(prompt: str, model: str = None, temperature: float = None) -> st
     
     try:
         logger.info(f"Ollama API 호출: {model} (temperature: {temperature})")
-        response = requests.post(url, json=payload, timeout=120)
+        # DeepSeek R1 14B는 응답 생성에 시간이 오래 걸릴 수 있으므로 타임아웃을 600초(10분)로 증가
+        response = requests.post(url, json=payload, timeout=600)
         response.raise_for_status()
         
         result = response.json()

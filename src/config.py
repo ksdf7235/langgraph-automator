@@ -90,7 +90,7 @@ class Config:
     # ComfyUI 설정
     COMFYUI_URL: str = os.getenv("COMFYUI_URL", "http://127.0.0.1:8188")
     COMFYUI_WS_URL: str = os.getenv("COMFYUI_WS_URL", "ws://127.0.0.1:8188/ws")
-    COMFYUI_WORKFLOW_PATH: str = os.getenv("COMFYUI_WORKFLOW_PATH", "comfyui_workflow.json")
+    COMFYUI_WORKFLOW_PATH: str = os.getenv("COMFYUI_WORKFLOW_PATH", "z_image_turbo_example.json")
     COMFYUI_TIMEOUT: int = int(os.getenv("COMFYUI_TIMEOUT", "300"))
     COMFYUI_RETRY_COUNT: int = int(os.getenv("COMFYUI_RETRY_COUNT", "2"))
     COMFYUI_USE_MOCK: bool = os.getenv("COMFYUI_USE_MOCK", "false").lower() == "true"  # 테스트용 더미 이미지 생성

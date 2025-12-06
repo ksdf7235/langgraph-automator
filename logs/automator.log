@@ -986,3 +986,353 @@ During task with name 'video_editor' and id '9b326d96-3c12-6779-2827-b9377de374e
 2025-11-30 07:37:22 - langgraph-automator - INFO - 주제: ai의 미래
 2025-11-30 07:37:22 - langgraph-automator - INFO - 워크플로우 시작...
 
+2025-11-30 07:53:38 - langgraph-automator - INFO - 
+============================================================
+2025-11-30 07:53:38 - langgraph-automator - INFO - 워크플로우 완료!
+2025-11-30 07:53:38 - langgraph-automator - INFO - ============================================================
+2025-11-30 07:53:38 - langgraph-automator - INFO - 최종 비디오 경로: output\ai의 미래\final_output.mp4
+2025-11-30 07:53:38 - langgraph-automator - INFO - 생성된 장면 수: 3
+2025-12-05 18:42:32 - langgraph-automator - INFO - ============================================================
+2025-12-05 18:42:32 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 18:42:32 - langgraph-automator - INFO - ============================================================
+2025-12-05 18:42:32 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 18:42:32 - langgraph-automator - INFO - 캐시된 단계: script, audio, image, motion, video
+2025-12-05 18:42:32 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 18:42:32 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 18:42:32 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 18:42:32 - langgraph-automator - INFO - 
+============================================================
+2025-12-05 18:42:32 - langgraph-automator - INFO - 워크플로우 완료!
+2025-12-05 18:42:32 - langgraph-automator - INFO - ============================================================
+2025-12-05 18:42:32 - langgraph-automator - INFO - 최종 비디오 경로: output\ai의 미래\final_output.mp4
+2025-12-05 18:42:32 - langgraph-automator - INFO - 생성된 장면 수: 3
+2025-12-05 18:42:51 - langgraph-automator - INFO - ============================================================
+2025-12-05 18:42:51 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 18:42:51 - langgraph-automator - INFO - ============================================================
+2025-12-05 18:42:51 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 18:42:51 - langgraph-automator - INFO - 캐시가 초기화되었습니다.
+2025-12-05 18:42:51 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 18:42:51 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 18:42:51 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 18:44:46 - langgraph-automator - WARNING - 
+사용자에 의해 중단되었습니다.
+2025-12-05 18:48:00 - langgraph-automator - INFO - ============================================================
+2025-12-05 18:48:00 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 18:48:00 - langgraph-automator - INFO - ============================================================
+2025-12-05 18:48:00 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 18:48:00 - langgraph-automator - INFO - 캐시가 초기화되었습니다.
+2025-12-05 18:48:00 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 18:48:00 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 18:48:00 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 18:48:22 - langgraph-automator - WARNING - 
+사용자에 의해 중단되었습니다.
+2025-12-05 18:49:16 - langgraph-automator - INFO - ============================================================
+2025-12-05 18:49:16 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 18:49:16 - langgraph-automator - INFO - ============================================================
+2025-12-05 18:49:16 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 18:49:16 - langgraph-automator - INFO - 캐시가 초기화되었습니다.
+2025-12-05 18:49:16 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 18:49:16 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 18:49:16 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 19:06:32 - langgraph-automator - INFO - 
+============================================================
+2025-12-05 19:06:32 - langgraph-automator - INFO - 워크플로우 완료!
+2025-12-05 19:06:32 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:06:32 - langgraph-automator - INFO - 최종 비디오 경로: output\ai의 미래\final_output.mp4
+2025-12-05 19:06:32 - langgraph-automator - INFO - 생성된 장면 수: 4
+2025-12-05 19:11:05 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:11:05 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 19:11:05 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:11:05 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 19:11:05 - langgraph-automator - INFO - 캐시가 초기화되었습니다.
+2025-12-05 19:11:05 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 19:11:05 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 19:11:05 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 19:11:42 - langgraph-automator - WARNING - 
+사용자에 의해 중단되었습니다.
+2025-12-05 19:14:53 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:14:53 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 19:14:53 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:14:53 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 19:14:53 - langgraph-automator - INFO - 캐시가 초기화되었습니다.
+2025-12-05 19:14:53 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 19:14:53 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 19:14:53 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 19:15:20 - langgraph-automator - WARNING - 
+사용자에 의해 중단되었습니다.
+2025-12-05 19:15:37 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:15:37 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 19:15:37 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:15:37 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 19:15:37 - langgraph-automator - INFO - 캐시가 초기화되었습니다.
+2025-12-05 19:15:37 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 19:15:37 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 19:15:37 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 19:15:54 - langgraph-automator - WARNING - 
+사용자에 의해 중단되었습니다.
+2025-12-05 19:16:37 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:16:37 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 19:16:37 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:16:37 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 19:16:37 - langgraph-automator - INFO - 캐시가 초기화되었습니다.
+2025-12-05 19:16:37 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 19:16:37 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 19:16:37 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 19:16:53 - langgraph-automator - WARNING - 
+사용자에 의해 중단되었습니다.
+2025-12-05 19:17:14 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:17:14 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 19:17:14 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:17:14 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 19:17:14 - langgraph-automator - INFO - 캐시가 초기화되었습니다.
+2025-12-05 19:17:14 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 19:17:14 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 19:17:14 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 19:18:10 - langgraph-automator - WARNING - 
+사용자에 의해 중단되었습니다.
+2025-12-05 19:20:36 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:20:36 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 19:20:36 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:20:36 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 19:20:37 - langgraph-automator - INFO - 캐시가 초기화되었습니다.
+2025-12-05 19:20:37 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 19:20:37 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 19:20:37 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 19:21:49 - langgraph-automator - WARNING - 
+사용자에 의해 중단되었습니다.
+2025-12-05 19:24:30 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:24:30 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 19:24:30 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:24:30 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 19:24:30 - langgraph-automator - INFO - 캐시가 초기화되었습니다.
+2025-12-05 19:24:30 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 19:24:30 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 19:24:30 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 19:25:07 - langgraph-automator - WARNING - 
+사용자에 의해 중단되었습니다.
+2025-12-05 19:30:21 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:30:21 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 19:30:21 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:30:21 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 19:30:21 - langgraph-automator - INFO - 캐시가 초기화되었습니다.
+2025-12-05 19:30:21 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 19:30:21 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 19:30:21 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 19:32:43 - langgraph-automator - WARNING - 
+사용자에 의해 중단되었습니다.
+2025-12-05 19:32:48 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:32:48 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 19:32:48 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:32:48 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 19:32:48 - langgraph-automator - INFO - 캐시가 초기화되었습니다.
+2025-12-05 19:32:48 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 19:32:48 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 19:32:48 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 19:35:38 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:35:38 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 19:35:38 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:35:38 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 19:35:38 - langgraph-automator - INFO - 캐시가 초기화되었습니다.
+2025-12-05 19:35:38 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 19:35:38 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 19:35:38 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 19:40:49 - langgraph-automator - ERROR - 
+오류 발생: ('Connection aborted.', ConnectionResetError(10054, '현재 연결은 원격 호스트에 의해 강제로 끊겼습니다', None, 10054, None))
+Traceback (most recent call last):
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\urllib3\connection.py", line 565, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Users\ksdf7235\AppData\Roaming\uv\python\cpython-3.13.2-windows-x86_64-none\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\ksdf7235\AppData\Roaming\uv\python\cpython-3.13.2-windows-x86_64-none\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\ksdf7235\AppData\Roaming\uv\python\cpython-3.13.2-windows-x86_64-none\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Users\ksdf7235\AppData\Roaming\uv\python\cpython-3.13.2-windows-x86_64-none\Lib\socket.py", line 719, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+ConnectionResetError: [WinError 10054] 현재 연결은 원격 호스트에 의해 강제로 끊겼습니다
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\requests\adapters.py", line 644, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\urllib3\util\retry.py", line 474, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\urllib3\util\util.py", line 38, in reraise
+    raise value.with_traceback(tb)
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\urllib3\connectionpool.py", line 787, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\urllib3\connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\urllib3\connection.py", line 565, in getresponse
+    httplib_response = super().getresponse()
+  File "C:\Users\ksdf7235\AppData\Roaming\uv\python\cpython-3.13.2-windows-x86_64-none\Lib\http\client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\ksdf7235\AppData\Roaming\uv\python\cpython-3.13.2-windows-x86_64-none\Lib\http\client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\ksdf7235\AppData\Roaming\uv\python\cpython-3.13.2-windows-x86_64-none\Lib\http\client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Users\ksdf7235\AppData\Roaming\uv\python\cpython-3.13.2-windows-x86_64-none\Lib\socket.py", line 719, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+urllib3.exceptions.ProtocolError: ('Connection aborted.', ConnectionResetError(10054, '현재 연결은 원격 호스트에 의해 강제로 끊겼습니다', None, 10054, None))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\src\main.py", line 78, in main
+    final_state = graph.invoke(initial_state)
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\langgraph\pregel\main.py", line 3068, in invoke
+    for chunk in self.stream(
+                 ~~~~~~~~~~~^
+        input,
+        ^^^^^^
+    ...<10 lines>...
+        **kwargs,
+        ^^^^^^^^^
+    ):
+    ^
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\langgraph\pregel\main.py", line 2643, in stream
+    for _ in runner.tick(
+             ~~~~~~~~~~~^
+        [t for t in loop.tasks.values() if not t.writes],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        schedule_task=loop.accept_push,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ):
+    ^
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\langgraph\pregel\_runner.py", line 167, in tick
+    run_with_retry(
+    ~~~~~~~~~~~~~~^
+        t,
+        ^^
+    ...<10 lines>...
+        },
+        ^^
+    )
+    ^
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\langgraph\pregel\_retry.py", line 42, in run_with_retry
+    return task.proc.invoke(task.input, config)
+           ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\langgraph\_internal\_runnable.py", line 656, in invoke
+    input = context.run(step.invoke, input, config, **kwargs)
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\langgraph\_internal\_runnable.py", line 400, in invoke
+    ret = self.func(*args, **kwargs)
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\src\workflow\graph.py", line 97, in wrapper
+    result = func(state)
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\src\workflow\graph.py", line 63, in wrapper
+    raise last_error
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\src\workflow\graph.py", line 50, in wrapper
+    return func(state)
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\src\workflow\graph.py", line 117, in node_script_writer_with_retry
+    return node_script_writer(state)
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\src\agents\script_writer.py", line 253, in node_script_writer
+    scenes = generate_script(topic)
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\src\agents\script_writer.py", line 204, in generate_script
+    response_text = call_ollama(prompt)
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\src\agents\script_writer.py", line 51, in call_ollama
+    response = requests.post(url, json=payload, timeout=120)
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\requests\api.py", line 115, in post
+    return request("post", url, data=data, json=json, **kwargs)
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\requests\api.py", line 59, in request
+    return session.request(method=method, url=url, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\ksdf7235\Desktop\workspace\localAgents\langgraph-automator\.venv\Lib\site-packages\requests\adapters.py", line 659, in send
+    raise ConnectionError(err, request=request)
+requests.exceptions.ConnectionError: ('Connection aborted.', ConnectionResetError(10054, '현재 연결은 원격 호스트에 의해 강제로 끊겼습니다', None, 10054, None))
+During task with name 'script_writer' and id 'e44265b7-a917-7d6f-2e2e-8f88774250d1'
+2025-12-05 19:52:01 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:52:01 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 19:52:01 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:52:01 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 19:52:01 - langgraph-automator - INFO - 캐시가 초기화되었습니다.
+2025-12-05 19:52:01 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 19:52:01 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 19:52:01 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 19:59:13 - langgraph-automator - WARNING - 
+사용자에 의해 중단되었습니다.
+2025-12-05 19:59:15 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:59:15 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 19:59:15 - langgraph-automator - INFO - ============================================================
+2025-12-05 19:59:15 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 19:59:15 - langgraph-automator - INFO - 캐시가 초기화되었습니다.
+2025-12-05 19:59:15 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 19:59:15 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 19:59:15 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 20:04:55 - langgraph-automator - WARNING - 
+사용자에 의해 중단되었습니다.
+2025-12-05 20:08:52 - langgraph-automator - INFO - ============================================================
+2025-12-05 20:08:52 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 20:08:52 - langgraph-automator - INFO - ============================================================
+2025-12-05 20:08:52 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 20:08:52 - langgraph-automator - INFO - 캐시된 단계: script, audio
+2025-12-05 20:08:52 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 20:08:52 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 20:08:52 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 20:09:32 - langgraph-automator - WARNING - 
+사용자에 의해 중단되었습니다.
+2025-12-05 20:15:19 - langgraph-automator - INFO - ============================================================
+2025-12-05 20:15:19 - langgraph-automator - INFO - YouTube Shorts 자동 생성 에이전트
+2025-12-05 20:15:19 - langgraph-automator - INFO - ============================================================
+2025-12-05 20:15:19 - langgraph-automator - INFO - 설정 검증 완료
+2025-12-05 20:15:19 - langgraph-automator - INFO - 캐시된 단계: script, audio
+2025-12-05 20:15:19 - langgraph-automator - INFO - 워크플로우 그래프 생성 중...
+2025-12-05 20:15:19 - langgraph-automator - INFO - 주제: ai의 미래
+2025-12-05 20:15:19 - langgraph-automator - INFO - 워크플로우 시작...
+
+2025-12-05 20:31:20 - langgraph-automator - INFO - 
+============================================================
+2025-12-05 20:31:20 - langgraph-automator - INFO - 워크플로우 완료!
+2025-12-05 20:31:20 - langgraph-automator - INFO - ============================================================
+2025-12-05 20:31:20 - langgraph-automator - INFO - 최종 비디오 경로: output\ai의 미래\final_output.mp4
+2025-12-05 20:31:20 - langgraph-automator - INFO - 생성된 장면 수: 4

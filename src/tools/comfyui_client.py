@@ -392,6 +392,11 @@ class ComfyUIClient:
                 with open(workflow_path, 'r', encoding='utf-8') as f:
                     workflow = json.load(f)
                 logger.debug(f"워크플로우 로드 완료: {workflow_path}")
+
+                # UI 내보내기 포맷(nodes/links 배열)인 경우 API 포맷으로 변환
+                if isinstance(workflow, dict) and "nodes" in workflow and "links" in workflow:
+                    workflow = self._convert_ui_workflow(workflow)
+                    logger.info(f"UI 워크플로우를 API 포맷으로 변환했습니다: {workflow_path}")
             except Exception as e:
                 logger.error(f"워크플로우 로드 실패: {e}")
                 raise
@@ -461,21 +466,135 @@ class ComfyUIClient:
                     else:
                         logger.error("사용 가능한 모델이 없고 기본 모델도 설정되지 않았습니다.")
         
-        # UNETLoader가 있으면 Wan2.2 방식 사용
+        # UNETLoader가 있으면 Wan2.2 방식 사용 (단, I2V/Video 워크플로로 추정되는 경우에만 덮어씀)
         if unet_node_id:
-            # 환경 변수에서 지정된 UNet 모델이 있으면 사용 (I2V_UNET_NAME)
-            if hasattr(Config, 'I2V_UNET_NAME') and Config.I2V_UNET_NAME:
+            motion_like_keywords = ("Video", "I2V", "Animate", "Motion", "LivePortrait")
+            has_motion_nodes = any(
+                motion_kw.lower() in (node_data.get("class_type") or "").lower()
+                for node_data in workflow.values()
+                for motion_kw in motion_like_keywords
+            )
+
+            if has_motion_nodes and hasattr(Config, 'I2V_UNET_NAME') and Config.I2V_UNET_NAME:
                 workflow[unet_node_id]["inputs"]["unet_name"] = Config.I2V_UNET_NAME
-                logger.info(f"환경 변수에서 지정된 UNet 모델 사용: {Config.I2V_UNET_NAME}")
+                logger.info(f"(motion) 환경 변수에서 지정된 UNet 모델 사용: {Config.I2V_UNET_NAME}")
             else:
-                # 기본값 유지
-                current_unet = workflow[unet_node_id]["inputs"].get("unet_name", "")
-                if current_unet:
-                    logger.info(f"UNet 모델 사용: {current_unet}")
-                else:
-                    logger.warning("UNet 모델이 설정되지 않았습니다.")
-        
+                logger.debug("UNet 자동 덮어쓰기를 건너뜀 (motion 워크플로로 판단되지 않음)")
+
         return workflow
+
+    def _convert_ui_workflow(self, ui_workflow: Dict) -> Dict:
+        """
+        ComfyUI UI 내보내기 포맷(nodes/links 배열)을 API 제출 포맷(딕셔너리)으로 변환합니다.
+        - 입력에 링크가 있으면 [source_node_id, source_output_index]로 매핑
+        - 입력에 위젯값이 있으면 widgets_values 순서대로 대입
+        - node.id는 문자열 키로 사용
+        """
+        nodes = ui_workflow.get("nodes", [])
+        links = ui_workflow.get("links", [])
+
+        # link_id -> (src_node, src_slot)
+        link_map: Dict[int, tuple] = {}
+        for link in links:
+            if not isinstance(link, list) or len(link) < 5:
+                continue
+            link_id, src_node, src_slot, *_ = link
+            link_map[link_id] = (src_node, src_slot)
+
+        api_workflow: Dict[str, Dict] = {}
+
+        for node in nodes:
+            node_id = str(node.get("id"))
+            class_type = node.get("type")
+
+            # UI 메모 노드는 실행 대상이 아니므로 건너뜀
+            if class_type in {"Note"}:
+                continue
+
+            inputs_cfg = node.get("inputs", [])
+            widgets_values = node.get("widgets_values", []) or []
+
+            inputs: Dict[str, object] = {}
+            widget_idx = 0
+
+            # KSampler는 UI 내보내기 시 seed_randomize 등 추가 슬롯으로 인해 widgets_values가 흔들릴 수 있으므로 별도 처리
+            if class_type == "KSampler":
+                # 링크 입력 먼저 처리
+                for inp in inputs_cfg:
+                    name = inp.get("name")
+                    link = inp.get("link")
+                    if link is not None:
+                        src = link_map.get(link)
+                        if src:
+                            inputs[name] = [str(src[0]), src[1]]
+
+                # widgets_values 매핑 (UI 순서: seed, seed_randomize?, steps, cfg, sampler_name, scheduler, denoise)
+                vals = widgets_values
+                idx = 0
+
+                def _get(i, default=None):
+                    return vals[i] if i < len(vals) else default
+
+                seed = _get(idx, 0)
+                idx += 1
+
+                # seed_randomize 문자열이 끼어 있으면 건너뛴다
+                if idx < len(vals) and isinstance(vals[idx], str) and vals[idx] == "randomize":
+                    idx += 1
+
+                steps = _get(idx, 20); idx += 1
+                cfg = _get(idx, 4.0); idx += 1
+                sampler_name = _get(idx, "euler"); idx += 1
+                scheduler = _get(idx, "simple"); idx += 1
+                denoise = _get(idx, 1.0)
+
+                # 타입 보정
+                try:
+                    inputs["seed"] = int(seed)
+                except Exception:
+                    inputs["seed"] = 0
+                try:
+                    inputs["steps"] = int(steps)
+                except Exception:
+                    inputs["steps"] = 20
+                try:
+                    inputs["cfg"] = float(cfg)
+                except Exception:
+                    inputs["cfg"] = 4.0
+                inputs["sampler_name"] = str(sampler_name)
+                inputs["scheduler"] = str(scheduler)
+                try:
+                    inputs["denoise"] = float(denoise)
+                except Exception:
+                    inputs["denoise"] = 1.0
+
+                api_workflow[node_id] = {
+                    "inputs": inputs,
+                    "class_type": class_type,
+                    "_meta": {"title": node.get("title", class_type)}
+                }
+                continue
+
+            for inp in inputs_cfg:
+                name = inp.get("name")
+                link = inp.get("link")
+                has_widget = inp.get("widget") is not None
+
+                if link is not None:
+                    src = link_map.get(link)
+                    if src:
+                        inputs[name] = [str(src[0]), src[1]]
+                elif has_widget and widget_idx < len(widgets_values):
+                    inputs[name] = widgets_values[widget_idx]
+                    widget_idx += 1
+
+            api_workflow[node_id] = {
+                "inputs": inputs,
+                "class_type": class_type,
+                "_meta": {"title": node.get("title", class_type)}
+            }
+
+        return api_workflow
     
     def _create_default_workflow(self) -> Dict:
         """기본 워크플로우 생성"""
@@ -546,7 +665,7 @@ class ComfyUIClient:
             }
         }
     
-    def update_prompt(self, workflow: Dict, prompt: str, ensure_style_consistency: bool = True) -> Dict:
+    def update_prompt(self, workflow: Dict, prompt: str, ensure_style_consistency: bool = True, randomize_seed: bool = True) -> Dict:
         """
         워크플로우에서 프롬프트 노드를 찾아 프롬프트를 업데이트합니다.
         딥카피를 사용하여 원본 워크플로우를 보호합니다.
@@ -555,6 +674,7 @@ class ComfyUIClient:
             workflow: ComfyUI 워크플로우 딕셔너리
             prompt: 새로운 프롬프트
             ensure_style_consistency: 스타일 일관성 태그 자동 추가 여부 (기본값: True)
+            randomize_seed: 시드를 랜덤하게 설정할지 여부 (기본값: True)
             
         Returns:
             업데이트된 워크플로우 (딥카피)
@@ -586,34 +706,63 @@ class ComfyUIClient:
         # CLIPTextEncode 노드 찾기
         # positive 프롬프트는 보통 빈 문자열이 아니거나 긴 텍스트를 가짐
         prompt_node_id = None
+        negative_node_id = None
         
+        # 먼저 Positive Prompt 노드를 찾기
         for node_id, node_data in updated_workflow.items():
             if node_data.get("class_type") == "CLIPTextEncode":
                 inputs = node_data.get("inputs", {})
                 if "text" in inputs:
-                    current_text = inputs.get("text", "")
-                    # negative 프롬프트가 아닌 경우 (비어있지 않거나 긴 경우)
-                    # 또는 _meta에 "Prompt"가 포함된 경우
                     meta_title = node_data.get("_meta", {}).get("title", "")
-                    if "Prompt" in meta_title and "Negative" not in meta_title:
+                    current_text = inputs.get("text", "")
+                    
+                    # _meta title로 판단 (가장 정확)
+                    if "Negative" in meta_title:
+                        negative_node_id = node_id
+                    elif "Prompt" in meta_title and "Negative" not in meta_title:
                         prompt_node_id = node_id
-                        break
-                    elif current_text and current_text != "" and len(current_text) > 10:
-                        prompt_node_id = node_id
-                        break
+                        logger.debug(f"Positive Prompt 노드 발견 (title): {node_id} - {meta_title}")
+                    # title이 없으면 텍스트 길이로 판단
+                    elif not prompt_node_id and current_text and current_text != "" and len(current_text) > 10:
+                        # Negative는 보통 짧은 텍스트
+                        if "blurry" in current_text.lower() or "ugly" in current_text.lower() or "bad" in current_text.lower():
+                            negative_node_id = node_id
+                        else:
+                            prompt_node_id = node_id
+                            logger.debug(f"Positive Prompt 노드 발견 (텍스트 길이): {node_id}")
         
+        # Positive Prompt를 찾지 못한 경우 첫 번째 CLIPTextEncode 노드 사용 (Negative가 아닌 것)
         if not prompt_node_id:
-            # 첫 번째 CLIPTextEncode 노드를 사용
             for node_id, node_data in updated_workflow.items():
                 if node_data.get("class_type") == "CLIPTextEncode":
-                    prompt_node_id = node_id
-                    break
+                    if node_id != negative_node_id:
+                        prompt_node_id = node_id
+                        logger.debug(f"Positive Prompt 노드로 선택 (fallback): {node_id}")
+                        break
         
         if not prompt_node_id:
-            raise ValueError("워크플로우에서 CLIPTextEncode 노드를 찾을 수 없습니다.")
+            raise ValueError("워크플로우에서 CLIPTextEncode Positive Prompt 노드를 찾을 수 없습니다.")
         
+        # 이전 프롬프트와 비교
+        old_prompt = updated_workflow[prompt_node_id]["inputs"].get("text", "")
         updated_workflow[prompt_node_id]["inputs"]["text"] = enhanced_prompt
-        logger.debug(f"프롬프트 업데이트: 노드 {prompt_node_id} - {enhanced_prompt[:80]}...")
+        
+        logger.info(f"[프롬프트 업데이트] 노드 {prompt_node_id} (title: {updated_workflow[prompt_node_id].get('_meta', {}).get('title', 'N/A')})")
+        logger.info(f"  이전: {old_prompt[:80]}...")
+        logger.info(f"  새: {enhanced_prompt[:80]}...")
+        
+        # KSampler 노드 찾아서 시드 랜덤화
+        if randomize_seed:
+            import random
+            for node_id, node_data in updated_workflow.items():
+                if node_data.get("class_type") == "KSampler":
+                    inputs = node_data.get("inputs", {})
+                    if "seed" in inputs:
+                        old_seed = inputs.get("seed", "N/A")
+                        # 랜덤 시드 생성 (0 ~ 2^32-1)
+                        new_seed = random.randint(0, 2147483647)
+                        inputs["seed"] = new_seed
+                        logger.info(f"[시드 랜덤화] 노드 {node_id}: {old_seed} -> {new_seed}")
         
         return updated_workflow
     
@@ -753,6 +902,14 @@ class ComfyUIClient:
             requests.RequestException: API 호출 실패 시
         """
         retry_count = retry_count or Config.COMFYUI_RETRY_COUNT
+        
+        # 전송 전 워크플로우 검증 (프롬프트 노드 확인)
+        for node_id, node_data in workflow.items():
+            if node_data.get("class_type") == "CLIPTextEncode":
+                meta_title = node_data.get("_meta", {}).get("title", "")
+                node_text = node_data.get("inputs", {}).get("text", "")
+                if "Positive" in meta_title or ("Negative" not in meta_title and len(node_text) > 50):
+                    logger.info(f"[워크플로우 전송] 노드 {node_id} ({meta_title}): {node_text[:100]}...")
         
         prompt_payload = {
             "prompt": workflow,
@@ -1738,7 +1895,9 @@ def generate_images(scenes: List[Dict], output_dir: Path, retry_count: int = Non
         logger.error(f"ComfyUI 서버 헬스체크 실패: {e}")
         raise
     
+    # 워크플로우는 한 번만 로드 (각 장면마다 update_prompt에서 딥카피 생성)
     workflow = client.load_workflow()
+    logger.info(f"[이미지 생성] 워크플로우 로드 완료: {len(workflow)}개 노드")
     
     updated_scenes = []
     retry_count = retry_count or Config.COMFYUI_RETRY_COUNT
@@ -1748,16 +1907,32 @@ def generate_images(scenes: List[Dict], output_dir: Path, retry_count: int = Non
         if not image_prompt:
             raise ValueError(f"장면 {idx+1}에 이미지 프롬프트가 없습니다.")
         
-        logger.info(f"[이미지 생성] 장면 {idx+1} 처리 중: {image_prompt[:50]}...")
+        logger.info(f"[이미지 생성] 장면 {idx+1}/{len(scenes)} 처리 시작")
+        logger.info(f"  프롬프트: {image_prompt[:100]}...")
         
-        # 워크플로우 프롬프트 업데이트
+        # 워크플로우 프롬프트 업데이트 (딥카피 생성)
         updated_workflow = client.update_prompt(workflow, image_prompt)
+        
+        # 업데이트된 워크플로우 검증 및 로깅
+        prompt_nodes = [nid for nid, nd in updated_workflow.items() 
+                       if nd.get("class_type") == "CLIPTextEncode" and "text" in nd.get("inputs", {})]
+        logger.debug(f"  CLIPTextEncode 노드: {prompt_nodes}")
+        
+        # 실제로 업데이트되었는지 확인
+        for node_id in prompt_nodes:
+            node_data = updated_workflow[node_id]
+            meta_title = node_data.get("_meta", {}).get("title", "")
+            node_text = node_data.get("inputs", {}).get("text", "")
+            if "Positive" in meta_title or ("Negative" not in meta_title and len(node_text) > 50):
+                logger.info(f"  [검증] 노드 {node_id} ({meta_title}) 프롬프트: {node_text[:100]}...")
         
         # 이미지 생성 (재시도 포함)
         last_error = None
         for attempt in range(retry_count + 1):
             try:
                 # 프롬프트 실행 (매 재시도마다 새로운 prompt_id를 받음)
+                # updated_workflow가 제대로 전달되는지 확인
+                logger.debug(f"  [실행] 업데이트된 워크플로우를 ComfyUI에 전송합니다 (시도 {attempt + 1})")
                 prompt_id = client.execute_prompt(updated_workflow, retry_count=0)  # execute_prompt 내부에서 재시도
                 
                 # 완료 대기 (치명적 에러는 내부에서 즉시 예외 발생)
